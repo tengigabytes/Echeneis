@@ -1,0 +1,82 @@
+tiers:
+  S:
+    description: Deep reasoning, complex code review
+    trigger:
+      - command: /think
+      - classifier: high_complexity
+    models:
+      reasoning: gemini-2.5-flash
+    fallback:
+      - github-gpt-4o
+
+  A:
+    description: General purpose — translation, Q&A, code generation
+    trigger:
+      - default: true
+    models:
+      translation: mistral-large-3
+      code_generation: gemma-4-31b       # dense — deep attention for code
+      code_review: gemma-4-31b           # dense — focused analysis
+      general_qa: cerebras-llama-70b
+      vision: gemma-4-31b               # dense — better image understanding
+    fallback:
+      translation: gemma-4-26b           # MoE as translation backup
+      code_generation: mistral-large-3
+      code_review: mistral-large-3
+      general_qa: groq-llama-70b
+      vision: gemini-2.5-flash
+
+  B:
+    description: Batch processing, format conversion, simple summarization
+    trigger:
+      - command: /fast
+      - classifier: low_complexity
+      - batch_api: true
+    models:
+      batch: groq-llama-70b
+      summarization: gemma-4-26b         # MoE — good throughput for summaries
+    fallback:
+      batch: cerebras-llama-70b
+      summarization: groq-llama-70b
+
+task_types:
+  - name: translation
+    keywords: [translate, 翻譯, 翻成, translation]
+    default_tier: A
+  - name: code_generation
+    keywords: [code, implement, function, class, debug, test, lint, refactor]
+    default_tier: A
+  - name: code_review
+    keywords: [review, audit, analyze code]
+    default_tier: A
+  - name: summarization
+    keywords: [summarize, summary, tldr, 摘要]
+    default_tier: B
+  - name: reasoning
+    keywords: [think, reason, explain why, analyze]
+    default_tier: S
+  - name: vision
+    keywords: []
+    detect: image_attachment
+    default_tier: A
+  - name: batch
+    keywords: [format, convert, transform, label, classify, tag, annotate]
+    default_tier: B
+
+failover:
+  on_429: switch_to_fallback
+  on_5xx:
+    action: mark_unhealthy
+    retry_after_seconds: 60
+  on_timeout:
+    timeout_seconds: 30
+    action: switch_to_fallback
+  circuit_breaker:
+    consecutive_failures: 3
+    open_duration_seconds: 300
+    half_open_test: true
+
+cross_check:
+  enabled: false
+  verify_model: mistral-large-latest
+  trigger: natural_language_output

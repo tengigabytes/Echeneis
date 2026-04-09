@@ -1,0 +1,54 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "echeneis"
+version = "0.1.0"
+description = "Unified AI gateway for multi-provider free-tier aggregation"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.11"
+authors = [
+    { name = "tengigabytes" },
+]
+dependencies = [
+    "litellm>=1.40.0",
+    "python-telegram-bot>=21.0",
+    "fastapi>=0.111.0",
+    "uvicorn>=0.30.0",
+    "pyyaml>=6.0",
+    "httpx>=0.27.0",
+    "click>=8.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.4.0",
+    "black>=24.0",
+    "isort>=5.13.0",
+]
+
+[project.scripts]
+ech = "echeneis.cli.main:cli"
+
+[tool.black]
+target-version = ["py311"]
+line-length = 88
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.ruff]
+target-version = "py311"
+line-length = 88
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"

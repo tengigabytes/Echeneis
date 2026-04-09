@@ -1,0 +1,78 @@
+model_list:
+  # --- Google AI Studio ---
+  - model_name: gemma-4-31b
+    litellm_params:
+      model: gemini/gemma-4-31b-it
+      api_key: os.environ/GOOGLE_AI_STUDIO_API_KEY
+
+  - model_name: gemma-4-26b
+    litellm_params:
+      model: gemini/gemma-4-26b-a4b-it
+      api_key: os.environ/GOOGLE_AI_STUDIO_API_KEY
+
+  # --- Mistral ---
+  - model_name: mistral-large-3
+    litellm_params:
+      model: mistral/mistral-large-latest
+      api_key: os.environ/MISTRAL_API_KEY
+
+  - model_name: mistral-small-3.1
+    litellm_params:
+      model: mistral/mistral-small-latest
+      api_key: os.environ/MISTRAL_API_KEY
+
+  # --- Cerebras ---
+  - model_name: cerebras-llama-70b
+    litellm_params:
+      model: cerebras/llama3.3-70b
+      api_key: os.environ/CEREBRAS_API_KEY
+
+  # --- Groq ---
+  - model_name: groq-llama-4-scout
+    litellm_params:
+      model: groq/meta-llama/llama-4-scout-17b-16e-instruct
+      api_key: os.environ/GROQ_API_KEY
+
+  - model_name: groq-llama-70b
+    litellm_params:
+      model: groq/llama-3.3-70b-versatile
+      api_key: os.environ/GROQ_API_KEY
+
+  # --- Cloudflare Workers AI ---
+  - model_name: cf-llama-3-70b
+    litellm_params:
+      model: cloudflare/@cf/meta/llama-3.3-70b-instruct-fp8-fast
+      api_key: os.environ/CLOUDFLARE_API_TOKEN
+      api_base: https://api.cloudflare.com/client/v4/accounts/${CLOUDFLARE_ACCOUNT_ID}/ai
+
+  # --- GitHub Models ---
+  - model_name: github-gpt-4o
+    litellm_params:
+      model: github/gpt-4o
+      api_key: os.environ/GITHUB_TOKEN
+
+  # --- OpenRouter ---
+  - model_name: openrouter-free
+    litellm_params:
+      model: openrouter/auto
+      api_key: os.environ/OPENROUTER_API_KEY
+
+  # --- Gemini API ---
+  - model_name: gemini-2.5-flash
+    litellm_params:
+      model: gemini/gemini-2.5-flash-preview-04-17
+      api_key: os.environ/GEMINI_API_KEY
+
+  - model_name: gemini-2.0-flash
+    litellm_params:
+      model: gemini/gemini-2.0-flash
+      api_key: os.environ/GEMINI_API_KEY
+
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
+
+litellm_settings:
+  drop_params: true
+  set_verbose: false
+  num_retries: 2
+  request_timeout: 120
