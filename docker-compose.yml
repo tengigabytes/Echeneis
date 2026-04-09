@@ -1,17 +1,14 @@
 services:
   gateway:
-    image: ghcr.io/berriai/litellm:main-latest
+    build: .
     ports:
       - "4000:4000"
     volumes:
-      - ./config/litellm_config.yaml:/app/config.yaml
+      - ./config:/app/config
     env_file:
       - .env
-    command:
-      - "--config"
-      - "/app/config.yaml"
-      - "--port"
-      - "4000"
+    environment:
+      - ECHENEIS_CONFIG_DIR=/app/config
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:4000/health"]
