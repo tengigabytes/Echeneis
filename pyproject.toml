@@ -33,6 +33,7 @@ dev = [
 
 [project.scripts]
 ech = "echeneis.cli.main:cli"
+ech-bot = "echeneis.bot.main:main"
 
 [tool.black]
 target-version = ["py311"]

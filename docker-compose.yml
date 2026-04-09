@@ -16,3 +16,15 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+
+  bot:
+    build: .
+    command: ["python", "-m", "echeneis.bot.main"]
+    env_file:
+      - .env
+    environment:
+      - ECHENEIS_GATEWAY_URL=http://gateway:4000
+    depends_on:
+      gateway:
+        condition: service_healthy
+    restart: unless-stopped
