@@ -7,7 +7,7 @@ import pytest
 from echeneis.gateway.classifier import Classification
 from echeneis.gateway.config import FailoverConfig, RoutingConfig
 from echeneis.gateway.health import HealthTracker
-from echeneis.gateway.router import Router
+from echeneis.gateway.router import ModelEntry, Router
 
 _TEST_CONFIG = RoutingConfig.from_dict(
     {
@@ -34,10 +34,10 @@ _TEST_CONFIG = RoutingConfig.from_dict(
 )
 
 _REGISTRY = {
-    "mistral-large-3": "mistral/mistral-large-latest",
-    "gemma-4-26b": "gemini/gemma-4-26b-a4b-it",
-    "cerebras-llama-70b": "cerebras/llama3.3-70b",
-    "groq-llama-70b": "groq/llama-3.3-70b-versatile",
+    "mistral-large-3": ModelEntry("mistral/mistral-large-latest", api_key="sk-test"),
+    "gemma-4-26b": ModelEntry("gemini/gemma-4-26b-a4b-it", api_key="sk-test"),
+    "cerebras-llama-70b": ModelEntry("cerebras/llama3.3-70b", api_key="sk-test"),
+    "groq-llama-70b": ModelEntry("groq/llama-3.3-70b-versatile", api_key="sk-test"),
 }
 
 

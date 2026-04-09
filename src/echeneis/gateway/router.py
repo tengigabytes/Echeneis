@@ -5,6 +5,8 @@ with automatic failover on rate limits, server errors, and timeouts.
 """
 
 import logging
+import os
+from dataclasses import dataclass
 from typing import Any
 
 import litellm
@@ -15,31 +17,64 @@ from echeneis.gateway.health import HealthTracker
 
 logger = logging.getLogger(__name__)
 
-# Map litellm model names to their litellm provider prefixes.
-# litellm_config.yaml uses short names; we need the full litellm model string.
-# This mapping is built from litellm_config.yaml at startup.
-ModelRegistry = dict[str, str]
+
+@dataclass
+class ModelEntry:
+    """A resolved model entry from litellm_config.yaml."""
+
+    litellm_model: str
+    api_key: str | None = None
+    api_base: str | None = None
+
+
+# Maps short model names to their resolved litellm params.
+ModelRegistry = dict[str, ModelEntry]
+
+
+def _resolve_env_ref(value: str) -> str | None:
+    """Resolve 'os.environ/VAR_NAME' references to actual env var values.
+
+    Args:
+        value: Raw value from litellm_config.yaml.
+
+    Returns:
+        Resolved value, or None if the env var is unset/empty.
+    """
+    if isinstance(value, str) and value.startswith("os.environ/"):
+        var_name = value[len("os.environ/"):]
+        return os.environ.get(var_name) or None
+    return value
 
 
 def build_model_registry(litellm_config_path: str) -> ModelRegistry:
-    """Build a mapping from short model names to litellm model strings.
+    """Build a mapping from short model names to resolved litellm params.
 
     Args:
         litellm_config_path: Path to litellm_config.yaml.
 
     Returns:
-        Dict mapping e.g. "gemma-4-31b" → "gemini/gemma-4-31b-it".
+        Dict mapping e.g. "gemma-4-31b" → ModelEntry(litellm_model, api_key, ...).
     """
     import yaml
 
-    with open(litellm_config_path) as f:
+    with open(litellm_config_path, encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
     registry: ModelRegistry = {}
     for entry in config.get("model_list", []):
         short_name = entry["model_name"]
-        litellm_model = entry["litellm_params"]["model"]
-        registry[short_name] = litellm_model
+        params = entry["litellm_params"]
+        litellm_model = params["model"]
+
+        api_key = _resolve_env_ref(params.get("api_key", ""))
+        api_base_raw = params.get("api_base")
+        api_base = os.path.expandvars(api_base_raw) if api_base_raw else None
+
+        registry[short_name] = ModelEntry(
+            litellm_model=litellm_model,
+            api_key=api_key,
+            api_base=api_base,
+        )
 
     return registry
 
@@ -61,15 +96,15 @@ class Router:
         self._registry = model_registry
         self._health = health_tracker
 
-    def _resolve_model(self, short_name: str) -> str:
-        """Resolve short model name to litellm model string."""
-        litellm_model = self._registry.get(short_name)
-        if not litellm_model:
+    def _resolve_model(self, short_name: str) -> ModelEntry:
+        """Resolve short model name to its ModelEntry."""
+        entry = self._registry.get(short_name)
+        if not entry:
             raise ValueError(
                 f"Model '{short_name}' not found in litellm config. "
                 f"Available: {list(self._registry.keys())}"
             )
-        return litellm_model
+        return entry
 
     def _pick_models(self, classification: Classification) -> list[str]:
         """Pick primary + fallback model names for a classification.
@@ -130,22 +165,29 @@ class Router:
                 logger.info("Skipping %s — unavailable", short_name)
                 continue
 
-            litellm_model = self._resolve_model(short_name)
+            entry = self._resolve_model(short_name)
             logger.info(
                 "Routing %s/%s → %s (%s)",
                 classification.tier,
                 classification.task_type,
                 short_name,
-                litellm_model,
+                entry.litellm_model,
             )
 
+            # Build call kwargs — only pass api_key/api_base if set
+            call_kwargs: dict[str, Any] = {
+                "model": entry.litellm_model,
+                "messages": messages,
+                "timeout": timeout,
+                **kwargs,
+            }
+            if entry.api_key:
+                call_kwargs["api_key"] = entry.api_key
+            if entry.api_base:
+                call_kwargs["api_base"] = entry.api_base
+
             try:
-                response = await litellm.acompletion(
-                    model=litellm_model,
-                    messages=messages,
-                    timeout=timeout,
-                    **kwargs,
-                )
+                response = await litellm.acompletion(**call_kwargs)
                 self._health.record_success(short_name)
                 return response
 
@@ -155,7 +197,7 @@ class Router:
                 last_error = litellm.RateLimitError(
                     message=f"Rate limited: {short_name}",
                     llm_provider=short_name,
-                    model=litellm_model,
+                    model=entry.litellm_model,
                 )
 
             except litellm.APIStatusError as e:
@@ -170,7 +212,7 @@ class Router:
                 last_error = litellm.Timeout(
                     message=f"Timeout: {short_name}",
                     llm_provider=short_name,
-                    model=litellm_model,
+                    model=entry.litellm_model,
                 )
 
             except Exception as e:

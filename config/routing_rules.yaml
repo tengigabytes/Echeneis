@@ -10,15 +10,15 @@ tiers:
       - github-gpt-4o
 
   A:
-    description: General purpose — translation, Q&A, code generation
+    description: General purpose - translation, Q&A, code generation
     trigger:
       - default: true
     models:
       translation: mistral-large-3
-      code_generation: gemma-4-31b       # dense — deep attention for code
-      code_review: gemma-4-31b           # dense — focused analysis
+      code_generation: gemma-4-31b       # dense -deep attention for code
+      code_review: gemma-4-31b           # dense -focused analysis
       general_qa: cerebras-llama-70b
-      vision: gemma-4-31b               # dense — better image understanding
+      vision: gemma-4-31b               # dense -better image understanding
     fallback:
       translation: gemma-4-26b           # MoE as translation backup
       code_generation: mistral-large-3
@@ -34,7 +34,7 @@ tiers:
       - batch_api: true
     models:
       batch: groq-llama-70b
-      summarization: gemma-4-26b         # MoE — good throughput for summaries
+      summarization: gemma-4-26b         # MoE -good throughput for summaries
     fallback:
       batch: cerebras-llama-70b
       summarization: groq-llama-70b

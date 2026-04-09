@@ -141,6 +141,6 @@ class RoutingConfig:
     @classmethod
     def from_yaml(cls, path: str | Path) -> "RoutingConfig":
         """Load routing config from a YAML file."""
-        with open(path) as f:
+        with open(path, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         return cls.from_dict(data)
