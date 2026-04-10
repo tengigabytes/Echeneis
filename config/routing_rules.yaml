@@ -5,8 +5,9 @@ tiers:
       - command: /think
       - classifier: high_complexity
     models:
-      reasoning: gemini-2.5-flash
+      reasoning: gemma-4-31b
     fallback:
+      - gemini-2.5-flash
       - github-gpt-4o
 
   A:
