@@ -20,8 +20,10 @@ from echeneis.bot.handlers.commands import (
     fast_command,
     help_command,
     model_command,
+    models_command,
     start_command,
     think_command,
+    use_command,
 )
 from echeneis.bot.handlers.messages import (
     document_message,
@@ -46,9 +48,7 @@ def main() -> None:
 
     allowed_users = os.environ.get("TELEGRAM_ALLOWED_USERS", "")
     if not allowed_users.strip():
-        logger.warning(
-            "TELEGRAM_ALLOWED_USERS is empty — bot will reject all messages"
-        )
+        logger.warning("TELEGRAM_ALLOWED_USERS is empty — bot will reject all messages")
 
     gateway = GatewayClient()
 
@@ -62,14 +62,14 @@ def main() -> None:
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("think", think_command))
     app.add_handler(CommandHandler("fast", fast_command))
+    app.add_handler(CommandHandler("models", models_command))
+    app.add_handler(CommandHandler("use", use_command))
     app.add_handler(CommandHandler("model", model_command))
 
     # Register message handlers (order matters — more specific first)
     app.add_handler(MessageHandler(filters.PHOTO, photo_message))
     app.add_handler(MessageHandler(filters.Document.ALL, document_message))
-    app.add_handler(
-        MessageHandler(filters.TEXT & ~filters.COMMAND, text_message)
-    )
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message))
 
     logger.info("Echeneis Bot starting…")
     app.run_polling()

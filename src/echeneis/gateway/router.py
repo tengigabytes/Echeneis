@@ -14,6 +14,7 @@ import litellm
 from echeneis.gateway.classifier import Classification
 from echeneis.gateway.config import RoutingConfig
 from echeneis.gateway.health import HealthTracker
+from echeneis.gateway.usage import UsageTracker
 
 logger = logging.getLogger(__name__)
 
@@ -41,16 +42,20 @@ def _resolve_env_ref(value: str) -> str | None:
         Resolved value, or None if the env var is unset/empty.
     """
     if isinstance(value, str) and value.startswith("os.environ/"):
-        var_name = value[len("os.environ/"):]
+        var_name = value[len("os.environ/") :]
         return os.environ.get(var_name) or None
     return value
 
 
-def build_model_registry(litellm_config_path: str) -> ModelRegistry:
+def build_model_registry(
+    litellm_config_path: str,
+    usage_tracker: UsageTracker | None = None,
+) -> ModelRegistry:
     """Build a mapping from short model names to resolved litellm params.
 
     Args:
         litellm_config_path: Path to litellm_config.yaml.
+        usage_tracker: Optional usage tracker to register rate limits.
 
     Returns:
         Dict mapping e.g. "gemma-4-31b" → ModelEntry(litellm_model, api_key, ...).
@@ -76,6 +81,14 @@ def build_model_registry(litellm_config_path: str) -> ModelRegistry:
             api_base=api_base,
         )
 
+        # Register rate limits if available
+        if usage_tracker:
+            rl = entry.get("rate_limits", {})
+            if rl:
+                usage_tracker.set_limits(
+                    short_name, rpm=rl.get("rpm", 0), rpd=rl.get("rpd", 0)
+                )
+
     return registry
 
 
@@ -91,10 +104,12 @@ class Router:
         routing_config: RoutingConfig,
         model_registry: ModelRegistry,
         health_tracker: HealthTracker,
+        usage_tracker: UsageTracker | None = None,
     ) -> None:
         self._config = routing_config
         self._registry = model_registry
         self._health = health_tracker
+        self._usage = usage_tracker
 
     def _resolve_model(self, short_name: str) -> ModelEntry:
         """Resolve short model name to its ModelEntry."""
@@ -189,6 +204,8 @@ class Router:
             try:
                 response = await litellm.acompletion(**call_kwargs)
                 self._health.record_success(short_name)
+                if self._usage:
+                    self._usage.record_request(short_name)
                 return response
 
             except litellm.RateLimitError:
@@ -233,3 +250,65 @@ class Router:
             f"All models exhausted for {classification.tier}/"
             f"{classification.task_type}: {[c for c in candidates]}"
         ) from last_error
+
+    async def route_direct(
+        self,
+        short_name: str,
+        messages: list[dict[str, Any]],
+        **kwargs: Any,
+    ) -> Any:
+        """Route a request directly to a specific model, bypassing classification.
+
+        Args:
+            short_name: Short model name from the registry (e.g. "gemma-4-31b").
+            messages: OpenAI-format messages list.
+            **kwargs: Additional params passed to litellm.acompletion.
+
+        Returns:
+            litellm ModelResponse.
+
+        Raises:
+            ValueError: If the model name is not found in the registry.
+            RuntimeError: If the model call fails.
+        """
+        entry = self._resolve_model(short_name)
+        timeout = self._config.failover.timeout_seconds
+
+        call_kwargs: dict[str, Any] = {
+            "model": entry.litellm_model,
+            "messages": messages,
+            "timeout": timeout,
+            **kwargs,
+        }
+        if entry.api_key:
+            call_kwargs["api_key"] = entry.api_key
+        if entry.api_base:
+            call_kwargs["api_base"] = entry.api_base
+
+        try:
+            response = await litellm.acompletion(**call_kwargs)
+            self._health.record_success(short_name)
+            return response
+        except Exception as e:
+            self._health.record_failure(short_name, getattr(e, "status_code", 500))
+            raise RuntimeError(f"Model {short_name} failed: {e}") from e
+
+    def list_models(self) -> list[dict[str, Any]]:
+        """List all registered models with their health status.
+
+        Returns:
+            List of dicts with model name, provider, and availability.
+        """
+        models = []
+        for short_name, entry in self._registry.items():
+            available = self._health.is_available(short_name)
+            has_key = bool(entry.api_key)
+            models.append(
+                {
+                    "name": short_name,
+                    "litellm_model": entry.litellm_model,
+                    "available": available and has_key,
+                    "has_key": has_key,
+                }
+            )
+        return models

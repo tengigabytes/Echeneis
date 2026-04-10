@@ -16,6 +16,7 @@ from echeneis.gateway.classifier import TaskClassifier
 from echeneis.gateway.config import RoutingConfig
 from echeneis.gateway.health import HealthTracker
 from echeneis.gateway.router import Router, build_model_registry
+from echeneis.gateway.usage import UsageTracker
 
 logger = logging.getLogger(__name__)
 
@@ -42,10 +43,11 @@ def create_app(
     litellm_path = Path(litellm_config_path or _LITELLM_CONFIG)
 
     routing_config = RoutingConfig.from_yaml(routing_path)
-    model_registry = build_model_registry(str(litellm_path))
+    usage_tracker = UsageTracker()
+    model_registry = build_model_registry(str(litellm_path), usage_tracker)
     health_tracker = HealthTracker(routing_config.failover)
     classifier = TaskClassifier(routing_config)
-    router = Router(routing_config, model_registry, health_tracker)
+    router = Router(routing_config, model_registry, health_tracker, usage_tracker)
 
     app = FastAPI(title="Echeneis Gateway", version="0.1.0")
 
@@ -54,6 +56,7 @@ def create_app(
     app.state.router = router
     app.state.health_tracker = health_tracker
     app.state.routing_config = routing_config
+    app.state.model_registry = model_registry
 
     @app.post("/chat/completions")
     async def chat_completions(request: Request) -> JSONResponse:
@@ -95,8 +98,19 @@ def create_app(
             if key in body:
                 extra_params[key] = body[key]
 
+        # If a specific model is requested, bypass classification
+        requested_model = body.get("model")
+
         try:
-            response = await router.route(classification, messages, **extra_params)
+            if requested_model:
+                logger.info("Direct model request: %s", requested_model)
+                response = await router.route_direct(
+                    requested_model, messages, **extra_params
+                )
+            else:
+                response = await router.route(classification, messages, **extra_params)
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
         except RuntimeError as e:
             logger.error("Routing failed: %s", e)
             raise HTTPException(status_code=502, detail=str(e))
@@ -128,5 +142,14 @@ def create_app(
                 for tt in routing_config.task_types
             ],
         }
+
+    @app.get("/models")
+    async def models() -> dict[str, Any]:
+        """List all registered models with availability and usage."""
+        model_list = router.list_models()
+        all_usage = usage_tracker.get_all_usage()
+        for m in model_list:
+            m["usage"] = all_usage.get(m["name"], {})
+        return {"models": model_list}
 
     return app

@@ -6,6 +6,7 @@ Handles plain text, photos, and document messages.
 import logging
 from base64 import b64encode
 from io import BytesIO
+from typing import Any
 
 from telegram import Document, PhotoSize, Update
 from telegram.ext import ContextTypes
@@ -17,15 +18,45 @@ logger = logging.getLogger(__name__)
 
 # File extensions we'll attempt to read as text
 _TEXT_EXTENSIONS = {
-    ".py", ".js", ".ts", ".c", ".h", ".cpp", ".hpp", ".rs", ".go",
-    ".java", ".kt", ".rb", ".sh", ".bash", ".zsh", ".fish",
-    ".yaml", ".yml", ".toml", ".json", ".xml", ".csv", ".ini", ".cfg",
-    ".txt", ".md", ".rst", ".log",
-    ".html", ".css", ".scss", ".sql",
-    ".dockerfile", ".makefile",
+    ".py",
+    ".js",
+    ".ts",
+    ".c",
+    ".h",
+    ".cpp",
+    ".hpp",
+    ".rs",
+    ".go",
+    ".java",
+    ".kt",
+    ".rb",
+    ".sh",
+    ".bash",
+    ".zsh",
+    ".fish",
+    ".yaml",
+    ".yml",
+    ".toml",
+    ".json",
+    ".xml",
+    ".csv",
+    ".ini",
+    ".cfg",
+    ".txt",
+    ".md",
+    ".rst",
+    ".log",
+    ".html",
+    ".css",
+    ".scss",
+    ".sql",
+    ".dockerfile",
+    ".makefile",
 }
 
 _MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB
+_DEFAULT_MAX_TOKENS = 8192
+_TG_MSG_LIMIT = 4096
 
 
 async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -43,9 +74,10 @@ async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     try:
         result = await gateway.chat(
             messages=[{"role": "user", "content": text}],
+            max_tokens=_DEFAULT_MAX_TOKENS,
         )
-        reply = result["choices"][0]["message"]["content"]
-        await sent.edit_text(reply)
+        reply = _format_reply(result)
+        await _send_reply(sent, reply)
     except GatewayError as e:
         logger.error("Gateway error for text message: %s", e)
         await sent.edit_text("抱歉，處理請求時發生錯誤。請稍後再試。")
@@ -76,9 +108,10 @@ async def photo_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         ]
         result = await gateway.chat(
             messages=[{"role": "user", "content": content}],
+            max_tokens=_DEFAULT_MAX_TOKENS,
         )
-        reply = result["choices"][0]["message"]["content"]
-        await sent.edit_text(reply)
+        reply = _format_reply(result)
+        await _send_reply(sent, reply)
     except GatewayError as e:
         logger.error("Gateway error for photo: %s", e)
         await sent.edit_text("抱歉，無法分析這張圖片。請稍後再試。")
@@ -107,8 +140,7 @@ async def document_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     # Only handle known text file types
     if file_ext not in _TEXT_EXTENSIONS:
         await update.message.reply_text(
-            f"不支援的檔案格式：{file_ext}\n"
-            "目前支援：程式碼、設定檔、純文字檔。"
+            f"不支援的檔案格式：{file_ext}\n" "目前支援：程式碼、設定檔、純文字檔。"
         )
         return
 
@@ -129,15 +161,58 @@ async def document_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
         result = await gateway.chat(
             messages=[{"role": "user", "content": prompt}],
+            max_tokens=_DEFAULT_MAX_TOKENS,
         )
-        reply = result["choices"][0]["message"]["content"]
-        await sent.edit_text(reply)
+        reply = _format_reply(result)
+        await _send_reply(sent, reply)
     except GatewayError as e:
         logger.error("Gateway error for document: %s", e)
         await sent.edit_text("抱歉，處理檔案時發生錯誤。請稍後再試。")
     except Exception as e:
         logger.error("Error processing document: %s", e)
         await sent.edit_text("抱歉，讀取檔案時發生錯誤。")
+
+
+def _format_reply(result: dict) -> str:
+    """Format gateway response with model name prefix and truncation warning."""
+    content = result["choices"][0]["message"]["content"]
+    model = result.get("model", "unknown")
+    finish = result["choices"][0].get("finish_reason", "")
+    header = f"[{model}]"
+    if finish == "length":
+        header += " ⚠️ 回覆被截斷"
+    return f"{header}\n\n{content}"
+
+
+async def _send_reply(sent_msg: Any, text: str) -> None:
+    """Send reply, splitting into multiple messages if over Telegram limit."""
+    if len(text) <= _TG_MSG_LIMIT:
+        await sent_msg.edit_text(text)
+        return
+
+    # First chunk goes into the existing "processing" message
+    chunks = _split_text(text)
+    await sent_msg.edit_text(chunks[0])
+    # Remaining chunks as new messages in the same chat
+    chat = sent_msg.chat
+    for chunk in chunks[1:]:
+        await chat.send_message(chunk)
+
+
+def _split_text(text: str, limit: int = _TG_MSG_LIMIT) -> list[str]:
+    """Split text into chunks that fit within Telegram's message limit."""
+    chunks: list[str] = []
+    while text:
+        if len(text) <= limit:
+            chunks.append(text)
+            break
+        # Try to split at last newline before limit
+        cut = text.rfind("\n", 0, limit)
+        if cut <= 0:
+            cut = limit
+        chunks.append(text[:cut])
+        text = text[cut:].lstrip("\n")
+    return chunks
 
 
 def _get_extension(filename: str) -> str:

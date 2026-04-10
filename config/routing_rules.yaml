@@ -69,7 +69,7 @@ failover:
     action: mark_unhealthy
     retry_after_seconds: 60
   on_timeout:
-    timeout_seconds: 30
+    timeout_seconds: 120
     action: switch_to_fallback
   circuit_breaker:
     consecutive_failures: 3

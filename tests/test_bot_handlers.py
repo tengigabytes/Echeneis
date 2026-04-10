@@ -96,7 +96,8 @@ class TestThinkCommand:
         """Think command sends request with /think command."""
         gateway = AsyncMock()
         gateway.chat.return_value = {
-            "choices": [{"message": {"content": "Deep thought."}}]
+            "model": "gemini-2.5-flash",
+            "choices": [{"message": {"content": "Deep thought."}}],
         }
 
         update = _make_authorized_update()
@@ -110,7 +111,9 @@ class TestThinkCommand:
         gateway.chat.assert_called_once()
         call_kwargs = gateway.chat.call_args
         assert call_kwargs.kwargs["command"] == "/think"
-        sent_msg.edit_text.assert_called_once_with("Deep thought.")
+        reply = sent_msg.edit_text.call_args[0][0]
+        assert "[gemini-2.5-flash]" in reply
+        assert "Deep thought." in reply
 
     @pytest.mark.asyncio
     async def test_empty_args_shows_usage(self):
@@ -132,7 +135,8 @@ class TestFastCommand:
         """Fast command sends request with /fast command."""
         gateway = AsyncMock()
         gateway.chat.return_value = {
-            "choices": [{"message": {"content": "Quick reply."}}]
+            "model": "llama-3.3-70b-versatile",
+            "choices": [{"message": {"content": "Quick reply."}}],
         }
 
         update = _make_authorized_update()
@@ -146,7 +150,9 @@ class TestFastCommand:
         gateway.chat.assert_called_once()
         call_kwargs = gateway.chat.call_args
         assert call_kwargs.kwargs["command"] == "/fast"
-        sent_msg.edit_text.assert_called_once_with("Quick reply.")
+        reply = sent_msg.edit_text.call_args[0][0]
+        assert "[llama-3.3-70b-versatile]" in reply
+        assert "Quick reply." in reply
 
 
 class TestModelCommand:
@@ -193,7 +199,8 @@ class TestTextMessage:
         """Text message is sent to gateway without command."""
         gateway = AsyncMock()
         gateway.chat.return_value = {
-            "choices": [{"message": {"content": "Response."}}]
+            "model": "llama3.3-70b",
+            "choices": [{"message": {"content": "Response."}}],
         }
 
         update = _make_authorized_update("Hello there")
@@ -206,7 +213,9 @@ class TestTextMessage:
         gateway.chat.assert_called_once()
         call_args = gateway.chat.call_args
         assert call_args.kwargs.get("command") is None
-        sent_msg.edit_text.assert_called_once_with("Response.")
+        reply = sent_msg.edit_text.call_args[0][0]
+        assert "[llama3.3-70b]" in reply
+        assert "Response." in reply
 
     @pytest.mark.asyncio
     async def test_gateway_error_shows_error_message(self):

@@ -32,6 +32,7 @@ class GatewayClient:
         messages: list[dict[str, Any]],
         *,
         command: str | None = None,
+        model: str | None = None,
         **kwargs: Any,
     ) -> dict[str, Any]:
         """Send a chat completion request to the gateway.
@@ -39,6 +40,7 @@ class GatewayClient:
         Args:
             messages: OpenAI-format message list.
             command: Optional routing command ("/think", "/fast").
+            model: Optional model name to bypass automatic routing.
             **kwargs: Extra params forwarded to litellm (temperature, etc.).
 
         Returns:
@@ -50,6 +52,8 @@ class GatewayClient:
         body: dict[str, Any] = {"messages": messages}
         if command:
             body["command"] = command
+        if model:
+            body["model"] = model
         body.update(kwargs)
 
         try:
@@ -74,6 +78,12 @@ class GatewayClient:
     async def routes(self) -> dict[str, Any]:
         """Get current routing configuration."""
         resp = await self._client.get("/routes")
+        resp.raise_for_status()
+        return resp.json()
+
+    async def models(self) -> dict[str, Any]:
+        """List available models."""
+        resp = await self._client.get("/models")
         resp.raise_for_status()
         return resp.json()
 
