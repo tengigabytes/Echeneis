@@ -200,7 +200,12 @@ class Router:
                     model=entry.litellm_model,
                 )
 
-            except litellm.APIStatusError as e:
+            except litellm.AuthenticationError as e:
+                logger.warning("Auth error on %s, failing over", short_name)
+                self._health.record_failure(short_name, 401)
+                last_error = e
+
+            except litellm.APIError as e:
                 status = getattr(e, "status_code", 500)
                 logger.warning("API error %d on %s, failing over", status, short_name)
                 self._health.record_failure(short_name, status)
