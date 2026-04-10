@@ -65,7 +65,7 @@ class TestChatCompletions:
         resp = client.post("/chat/completions", json={"messages": []})
         assert resp.status_code == 400
 
-    def test_routes_translation_to_mistral(self, client: TestClient) -> None:
+    def test_routes_translation_to_gemma(self, client: TestClient) -> None:
         """Verify a translation request is routed to the correct model."""
         fake_resp = MagicMock()
         fake_resp.model_dump.return_value = {
@@ -87,7 +87,7 @@ class TestChatCompletions:
             )
             assert resp.status_code == 200
             call_kwargs = mock_acompletion.call_args.kwargs
-            assert "mistral" in call_kwargs["model"]
+            assert "gemma" in call_kwargs["model"]
 
     def test_routes_code_to_gemma(self, client: TestClient) -> None:
         """Verify a code request is routed to the correct model."""

@@ -14,13 +14,13 @@ tiers:
     trigger:
       - default: true
     models:
-      translation: mistral-large-3
+      translation: gemma-4-31b
       code_generation: gemma-4-31b       # dense -deep attention for code
       code_review: gemma-4-31b           # dense -focused analysis
       general_qa: gemma-4-31b
       vision: gemma-4-31b               # dense -better image understanding
     fallback:
-      translation: gemma-4-26b           # MoE as translation backup
+      translation: mistral-large-3
       code_generation: mistral-large-3
       code_review: mistral-large-3
       general_qa: cerebras-llama-8b
