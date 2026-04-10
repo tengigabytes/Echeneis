@@ -51,6 +51,17 @@ def create_app(
 
     app = FastAPI(title="Echeneis Gateway", version="0.1.0")
 
+    # API key authentication
+    master_key = os.environ.get("LITELLM_MASTER_KEY", "")
+
+    def _check_auth(request: Request) -> None:
+        """Verify Bearer token matches LITELLM_MASTER_KEY."""
+        if not master_key:
+            return  # No key set — skip auth (local dev)
+        auth = request.headers.get("authorization", "")
+        if auth != f"Bearer {master_key}":
+            raise HTTPException(status_code=401, detail="Invalid API key")
+
     # Store components on app state for access in routes
     app.state.classifier = classifier
     app.state.router = router
@@ -61,6 +72,7 @@ def create_app(
     @app.post("/chat/completions")
     async def chat_completions(request: Request) -> JSONResponse:
         """OpenAI-compatible chat completions endpoint."""
+        _check_auth(request)
         try:
             body = await request.json()
         except Exception:
@@ -127,8 +139,9 @@ def create_app(
         }
 
     @app.get("/routes")
-    async def routes() -> dict[str, Any]:
+    async def routes(request: Request) -> dict[str, Any]:
         """Show current routing configuration."""
+        _check_auth(request)
         return {
             "tiers": {
                 name: {
@@ -144,8 +157,9 @@ def create_app(
         }
 
     @app.get("/models")
-    async def models() -> dict[str, Any]:
+    async def models(request: Request) -> dict[str, Any]:
         """List all registered models with availability and usage."""
+        _check_auth(request)
         model_list = router.list_models()
         all_usage = usage_tracker.get_all_usage()
         for m in model_list:

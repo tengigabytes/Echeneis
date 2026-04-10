@@ -23,8 +23,10 @@ class GatewayClient:
         self._base_url = base_url or os.environ.get(
             "ECHENEIS_GATEWAY_URL", _DEFAULT_GATEWAY_URL
         )
+        master_key = os.environ.get("LITELLM_MASTER_KEY", "")
+        headers = {"Authorization": f"Bearer {master_key}"} if master_key else {}
         self._client = httpx.AsyncClient(
-            base_url=self._base_url, timeout=_REQUEST_TIMEOUT
+            base_url=self._base_url, timeout=_REQUEST_TIMEOUT, headers=headers
         )
 
     async def chat(
