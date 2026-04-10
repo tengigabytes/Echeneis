@@ -17,13 +17,13 @@ tiers:
       translation: mistral-large-3
       code_generation: gemma-4-31b       # dense -deep attention for code
       code_review: gemma-4-31b           # dense -focused analysis
-      general_qa: cerebras-llama-70b
+      general_qa: groq-llama-70b
       vision: gemma-4-31b               # dense -better image understanding
     fallback:
       translation: gemma-4-26b           # MoE as translation backup
       code_generation: mistral-large-3
       code_review: mistral-large-3
-      general_qa: groq-llama-70b
+      general_qa: cerebras-llama-8b
       vision: gemini-2.5-flash
 
   B:
@@ -36,7 +36,7 @@ tiers:
       batch: groq-llama-70b
       summarization: gemma-4-26b         # MoE -good throughput for summaries
     fallback:
-      batch: cerebras-llama-70b
+      batch: cerebras-llama-8b
       summarization: groq-llama-70b
 
 task_types:

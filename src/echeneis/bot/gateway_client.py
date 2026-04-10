@@ -13,7 +13,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 _DEFAULT_GATEWAY_URL = "http://localhost:4000"
-_REQUEST_TIMEOUT = 60.0  # gateway has its own 30s per-provider timeout
+_REQUEST_TIMEOUT = 150.0  # must exceed gateway's 120s per-provider timeout
 
 
 class GatewayClient:
