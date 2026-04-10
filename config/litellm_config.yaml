@@ -78,10 +78,18 @@ model_list:
       rpm: 15
       rpd: 150
 
-  # --- OpenRouter ---
-  - model_name: openrouter-free
+  # --- OpenRouter (free tier — all models share 50 RPD) ---
+  - model_name: or-gemini-flash-lite
     litellm_params:
-      model: openrouter/auto
+      model: openrouter/google/gemini-3.1-flash-lite-preview
+      api_key: os.environ/OPENROUTER_API_KEY
+    rate_limits:
+      rpm: 20
+      rpd: 50
+
+  - model_name: or-nemotron-120b
+    litellm_params:
+      model: openrouter/nvidia/nemotron-3-super-120b-a12b:free
       api_key: os.environ/OPENROUTER_API_KEY
     rate_limits:
       rpm: 20
