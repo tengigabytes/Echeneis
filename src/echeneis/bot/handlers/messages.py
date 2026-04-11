@@ -4,6 +4,7 @@ Handles plain text, photos, and document messages.
 """
 
 import logging
+import time
 from base64 import b64encode
 from io import BytesIO
 from typing import Any
@@ -72,11 +73,13 @@ async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     sent = await update.message.reply_text("處理中…")
 
     try:
+        started = time.perf_counter()
         result = await gateway.chat(
             messages=[{"role": "user", "content": text}],
             max_tokens=_DEFAULT_MAX_TOKENS,
         )
-        reply = _format_reply(result)
+        elapsed = time.perf_counter() - started
+        reply = _format_reply(result, elapsed)
         await _send_reply(sent, reply)
     except GatewayError as e:
         logger.error("Gateway error for text message: %s", e)
@@ -106,11 +109,13 @@ async def photo_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             {"type": "text", "text": caption},
             {"type": "image_url", "image_url": {"url": data_url}},
         ]
+        started = time.perf_counter()
         result = await gateway.chat(
             messages=[{"role": "user", "content": content}],
             max_tokens=_DEFAULT_MAX_TOKENS,
         )
-        reply = _format_reply(result)
+        elapsed = time.perf_counter() - started
+        reply = _format_reply(result, elapsed)
         await _send_reply(sent, reply)
     except GatewayError as e:
         logger.error("Gateway error for photo: %s", e)
@@ -159,11 +164,13 @@ async def document_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         else:
             prompt += "\n\n請分析這個檔案。"
 
+        started = time.perf_counter()
         result = await gateway.chat(
             messages=[{"role": "user", "content": prompt}],
             max_tokens=_DEFAULT_MAX_TOKENS,
         )
-        reply = _format_reply(result)
+        elapsed = time.perf_counter() - started
+        reply = _format_reply(result, elapsed)
         await _send_reply(sent, reply)
     except GatewayError as e:
         logger.error("Gateway error for document: %s", e)
@@ -173,12 +180,27 @@ async def document_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await sent.edit_text("抱歉，讀取檔案時發生錯誤。")
 
 
-def _format_reply(result: dict) -> str:
-    """Format gateway response with model name prefix and truncation warning."""
+def _format_reply(result: dict, elapsed: float | None = None) -> str:
+    """Format gateway response with model, throughput, and truncation info.
+
+    Header format:
+        [model · 42 tok/s · 2.3s]  — when usage and elapsed are available
+        [model · 2.3s]             — when usage is missing
+        [model]                    — when elapsed is also unavailable
+    """
     content = result["choices"][0]["message"]["content"]
     model = result.get("model", "unknown")
     finish = result["choices"][0].get("finish_reason", "")
-    header = f"[{model}]"
+
+    parts = [model]
+    completion_tokens = (result.get("usage") or {}).get("completion_tokens") or 0
+    if elapsed and elapsed > 0:
+        if completion_tokens > 0:
+            tps = completion_tokens / elapsed
+            parts.append(f"{tps:.0f} tok/s")
+        parts.append(f"{elapsed:.1f}s")
+
+    header = f"[{' · '.join(parts)}]"
     if finish == "length":
         header += " ⚠️ 回覆被截斷"
     return f"{header}\n\n{content}"

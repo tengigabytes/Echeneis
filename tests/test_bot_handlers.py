@@ -98,6 +98,7 @@ class TestThinkCommand:
         gateway.chat.return_value = {
             "model": "gemini-2.5-flash",
             "choices": [{"message": {"content": "Deep thought."}}],
+            "usage": {"prompt_tokens": 10, "completion_tokens": 20},
         }
 
         update = _make_authorized_update()
@@ -112,7 +113,7 @@ class TestThinkCommand:
         call_kwargs = gateway.chat.call_args
         assert call_kwargs.kwargs["command"] == "/think"
         reply = sent_msg.edit_text.call_args[0][0]
-        assert "[gemini-2.5-flash]" in reply
+        assert "gemini-2.5-flash" in reply
         assert "Deep thought." in reply
 
     @pytest.mark.asyncio
@@ -137,6 +138,7 @@ class TestFastCommand:
         gateway.chat.return_value = {
             "model": "llama-3.3-70b-versatile",
             "choices": [{"message": {"content": "Quick reply."}}],
+            "usage": {"prompt_tokens": 5, "completion_tokens": 15},
         }
 
         update = _make_authorized_update()
@@ -151,7 +153,7 @@ class TestFastCommand:
         call_kwargs = gateway.chat.call_args
         assert call_kwargs.kwargs["command"] == "/fast"
         reply = sent_msg.edit_text.call_args[0][0]
-        assert "[llama-3.3-70b-versatile]" in reply
+        assert "llama-3.3-70b-versatile" in reply
         assert "Quick reply." in reply
 
 
@@ -201,6 +203,7 @@ class TestTextMessage:
         gateway.chat.return_value = {
             "model": "llama3.3-70b",
             "choices": [{"message": {"content": "Response."}}],
+            "usage": {"prompt_tokens": 8, "completion_tokens": 12},
         }
 
         update = _make_authorized_update("Hello there")
@@ -214,7 +217,29 @@ class TestTextMessage:
         call_args = gateway.chat.call_args
         assert call_args.kwargs.get("command") is None
         reply = sent_msg.edit_text.call_args[0][0]
-        assert "[llama3.3-70b]" in reply
+        assert "llama3.3-70b" in reply
+        assert "Response." in reply
+        assert "tok/s" in reply
+
+    @pytest.mark.asyncio
+    async def test_reply_falls_back_without_usage(self):
+        """Missing usage field still renders header with elapsed time only."""
+        gateway = AsyncMock()
+        gateway.chat.return_value = {
+            "model": "llama3.3-70b",
+            "choices": [{"message": {"content": "Response."}}],
+        }
+
+        update = _make_authorized_update("Hello there")
+        sent_msg = AsyncMock()
+        update.message.reply_text.return_value = sent_msg
+
+        ctx = _make_context(gateway)
+
+        await text_message(update, ctx)
+        reply = sent_msg.edit_text.call_args[0][0]
+        assert "llama3.3-70b" in reply
+        assert "tok/s" not in reply
         assert "Response." in reply
 
     @pytest.mark.asyncio

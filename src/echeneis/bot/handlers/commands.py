@@ -5,6 +5,7 @@ UI text is in Traditional Chinese (繁體中文).
 """
 
 import logging
+import time
 
 from telegram import Update
 from telegram.ext import ContextTypes
@@ -64,12 +65,14 @@ async def think_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     sent = await update.message.reply_text("思考中…")
 
     try:
+        started = time.perf_counter()
         result = await gateway.chat(
             messages=[{"role": "user", "content": text}],
             command="/think",
             max_tokens=_DEFAULT_MAX_TOKENS,
         )
-        reply = _format_reply(result)
+        elapsed = time.perf_counter() - started
+        reply = _format_reply(result, elapsed)
         await _send_reply(sent, reply)
     except GatewayError as e:
         logger.error("Gateway error in /think: %s", e)
@@ -90,12 +93,14 @@ async def fast_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     sent = await update.message.reply_text("處理中…")
 
     try:
+        started = time.perf_counter()
         result = await gateway.chat(
             messages=[{"role": "user", "content": text}],
             command="/fast",
             max_tokens=_DEFAULT_MAX_TOKENS,
         )
-        reply = _format_reply(result)
+        elapsed = time.perf_counter() - started
+        reply = _format_reply(result, elapsed)
         await _send_reply(sent, reply)
     except GatewayError as e:
         logger.error("Gateway error in /fast: %s", e)
@@ -156,12 +161,14 @@ async def use_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     sent = await update.message.reply_text("處理中…")
 
     try:
+        started = time.perf_counter()
         result = await gateway.chat(
             messages=[{"role": "user", "content": text}],
             model=model_name,
             max_tokens=_DEFAULT_MAX_TOKENS,
         )
-        reply = _format_reply(result)
+        elapsed = time.perf_counter() - started
+        reply = _format_reply(result, elapsed)
         await _send_reply(sent, reply)
     except GatewayError as e:
         logger.error("Gateway error in /use: %s", e)
