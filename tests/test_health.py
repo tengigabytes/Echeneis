@@ -1,7 +1,11 @@
 """Tests for health tracker and circuit breaker."""
 
+import asyncio
 import time
 
+import pytest
+
+from echeneis.gateway import health as health_module
 from echeneis.gateway.config import FailoverConfig
 from echeneis.gateway.health import CircuitState, HealthTracker
 
@@ -102,3 +106,51 @@ class TestStatusReport:
         assert "model-a" in status
         assert "model-b" in status
         assert status["model-a"]["available"] is True
+
+
+class TestCircuitBreakerNotifications:
+    """Verify circuit-state transitions schedule Telegram notifications."""
+
+    @pytest.mark.asyncio
+    async def test_open_fires_notification(self, monkeypatch) -> None:
+        sent: list[str] = []
+
+        async def _capture(text: str) -> None:
+            sent.append(text)
+
+        monkeypatch.setattr(health_module, "send_telegram", _capture)
+
+        tracker = _tracker(failures=3)
+        for _ in range(3):
+            tracker.record_failure("model-a", 429)
+        # Give scheduled tasks a chance to run.
+        await asyncio.sleep(0)
+        assert any("model-a" in s and "斷路" in s for s in sent)
+
+    @pytest.mark.asyncio
+    async def test_recovery_fires_notification(self, monkeypatch) -> None:
+        sent: list[str] = []
+
+        async def _capture(text: str) -> None:
+            sent.append(text)
+
+        monkeypatch.setattr(health_module, "send_telegram", _capture)
+
+        tracker = _tracker(failures=3)
+        for _ in range(3):
+            tracker.record_failure("model-a", 429)
+        tracker.record_success("model-a")
+        await asyncio.sleep(0)
+        assert any("model-a" in s and "恢復" in s for s in sent)
+
+    def test_open_does_not_fire_without_event_loop(self, monkeypatch) -> None:
+        """Sync context (e.g. unit tests) should no-op instead of crashing."""
+
+        def _boom(text: str) -> None:
+            raise AssertionError("should not be called outside async context")
+
+        monkeypatch.setattr(health_module, "send_telegram", _boom)
+        tracker = _tracker(failures=2)
+        tracker.record_failure("model-a", 429)
+        tracker.record_failure("model-a", 429)
+        assert tracker._get_state("model-a").circuit_state == CircuitState.OPEN
