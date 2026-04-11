@@ -74,9 +74,7 @@ class TestChatCompletions:
         }
         mock_acompletion = AsyncMock(return_value=fake_resp)
 
-        with patch(
-            "echeneis.gateway.router.litellm.acompletion", mock_acompletion
-        ):
+        with patch("echeneis.gateway.router.litellm.acompletion", mock_acompletion):
             resp = client.post(
                 "/chat/completions",
                 json={
@@ -98,9 +96,7 @@ class TestChatCompletions:
         }
         mock_acompletion = AsyncMock(return_value=fake_resp)
 
-        with patch(
-            "echeneis.gateway.router.litellm.acompletion", mock_acompletion
-        ):
+        with patch("echeneis.gateway.router.litellm.acompletion", mock_acompletion):
             resp = client.post(
                 "/chat/completions",
                 json={
@@ -122,9 +118,7 @@ class TestChatCompletions:
         }
         mock_acompletion = AsyncMock(return_value=fake_resp)
 
-        with patch(
-            "echeneis.gateway.router.litellm.acompletion", mock_acompletion
-        ):
+        with patch("echeneis.gateway.router.litellm.acompletion", mock_acompletion):
             resp = client.post(
                 "/chat/completions",
                 json={
@@ -147,16 +141,12 @@ class TestChatCompletions:
         }
         mock_acompletion = AsyncMock(return_value=fake_resp)
 
-        with patch(
-            "echeneis.gateway.router.litellm.acompletion", mock_acompletion
-        ):
+        with patch("echeneis.gateway.router.litellm.acompletion", mock_acompletion):
             resp = client.post(
                 "/chat/completions",
                 json={
                     "command": "/fast",
-                    "messages": [
-                        {"role": "user", "content": "summarize this text"}
-                    ],
+                    "messages": [{"role": "user", "content": "summarize this text"}],
                 },
             )
             assert resp.status_code == 200
@@ -178,8 +168,6 @@ class TestChatCompletions:
         ):
             resp = client.post(
                 "/chat/completions",
-                json={
-                    "messages": [{"role": "user", "content": "hello"}]
-                },
+                json={"messages": [{"role": "user", "content": "hello"}]},
             )
             assert resp.status_code == 502

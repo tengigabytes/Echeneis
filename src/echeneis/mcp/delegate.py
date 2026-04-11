@@ -62,9 +62,7 @@ async def delegate_code_task(
     ]
 
     try:
-        resp = await _get_client().chat(
-            messages, max_tokens=max_tokens
-        )
+        resp = await _get_client().chat(messages, max_tokens=max_tokens)
         return _extract_text(resp)
     except GatewayError as e:
         return f"[echeneis error] {e}"
@@ -89,9 +87,7 @@ async def delegate_translate(
     if source_language:
         system_parts.append(f"The source language is {source_language}.")
     if preserve_terms:
-        system_parts.append(
-            f"Keep these terms untranslated: {preserve_terms}."
-        )
+        system_parts.append(f"Keep these terms untranslated: {preserve_terms}.")
 
     messages: list[dict[str, Any]] = [
         {"role": "system", "content": " ".join(system_parts)},

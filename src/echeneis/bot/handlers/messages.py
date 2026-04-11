@@ -145,7 +145,7 @@ async def document_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     # Only handle known text file types
     if file_ext not in _TEXT_EXTENSIONS:
         await update.message.reply_text(
-            f"不支援的檔案格式：{file_ext}\n" "目前支援：程式碼、設定檔、純文字檔。"
+            f"不支援的檔案格式：{file_ext}\n目前支援：程式碼、設定檔、純文字檔。"
         )
         return
 

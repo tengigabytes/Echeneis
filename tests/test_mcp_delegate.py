@@ -8,7 +8,6 @@ import pytest
 from echeneis.bot.gateway_client import GatewayClient
 from echeneis.mcp.delegate import (
     _extract_text,
-    _get_client,
     delegate_batch,
     delegate_code_task,
     delegate_translate,
@@ -111,6 +110,7 @@ class TestDelegateCodeTask:
     @pytest.mark.asyncio
     async def test_returns_error_on_gateway_failure(self, monkeypatch):
         gw = _mock_gateway(status_code=502)
+
         # Override transport to return a non-2xx response
         def fail_handler(req: httpx.Request) -> httpx.Response:
             return httpx.Response(502, json={"detail": "fail"})
@@ -133,9 +133,7 @@ class TestDelegateTranslate:
     @pytest.mark.asyncio
     async def test_returns_translated_text(self, monkeypatch):
         _inject_client(monkeypatch, _mock_gateway("Hola mundo"))
-        result = await delegate_translate(
-            text="Hello world", target_language="es"
-        )
+        result = await delegate_translate(text="Hello world", target_language="es")
         assert result == "Hola mundo"
 
     @pytest.mark.asyncio

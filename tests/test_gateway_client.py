@@ -35,9 +35,7 @@ class TestChat:
             lambda req: httpx.Response(200, json=mock_response)
         )
         gw = GatewayClient(base_url="http://test:4000")
-        gw._client = httpx.AsyncClient(
-            transport=transport, base_url="http://test:4000"
-        )
+        gw._client = httpx.AsyncClient(transport=transport, base_url="http://test:4000")
 
         result = await gw.chat(messages=[{"role": "user", "content": "Hi"}])
         assert result["choices"][0]["message"]["content"] == "Hello!"
@@ -56,9 +54,7 @@ class TestChat:
 
         transport = httpx.MockTransport(handler)
         gw = GatewayClient(base_url="http://test:4000")
-        gw._client = httpx.AsyncClient(
-            transport=transport, base_url="http://test:4000"
-        )
+        gw._client = httpx.AsyncClient(transport=transport, base_url="http://test:4000")
 
         await gw.chat(
             messages=[{"role": "user", "content": "test"}],
@@ -74,9 +70,7 @@ class TestChat:
             lambda req: httpx.Response(502, json={"detail": "All models exhausted"})
         )
         gw = GatewayClient(base_url="http://test:4000")
-        gw._client = httpx.AsyncClient(
-            transport=transport, base_url="http://test:4000"
-        )
+        gw._client = httpx.AsyncClient(transport=transport, base_url="http://test:4000")
 
         with pytest.raises(GatewayError) as exc_info:
             await gw.chat(messages=[{"role": "user", "content": "Hi"}])
@@ -92,9 +86,7 @@ class TestChat:
 
         transport = httpx.MockTransport(fail)
         gw = GatewayClient(base_url="http://test:4000")
-        gw._client = httpx.AsyncClient(
-            transport=transport, base_url="http://test:4000"
-        )
+        gw._client = httpx.AsyncClient(transport=transport, base_url="http://test:4000")
 
         with pytest.raises(GatewayError) as exc_info:
             await gw.chat(messages=[{"role": "user", "content": "Hi"}])
@@ -109,13 +101,9 @@ class TestHealth:
     async def test_health_returns_status(self):
         """Health returns parsed response."""
         mock_resp = {"status": "ok", "providers": {}}
-        transport = httpx.MockTransport(
-            lambda req: httpx.Response(200, json=mock_resp)
-        )
+        transport = httpx.MockTransport(lambda req: httpx.Response(200, json=mock_resp))
         gw = GatewayClient(base_url="http://test:4000")
-        gw._client = httpx.AsyncClient(
-            transport=transport, base_url="http://test:4000"
-        )
+        gw._client = httpx.AsyncClient(transport=transport, base_url="http://test:4000")
 
         result = await gw.health()
         assert result["status"] == "ok"

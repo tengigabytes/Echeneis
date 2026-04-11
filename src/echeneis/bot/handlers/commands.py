@@ -150,7 +150,7 @@ async def use_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     args = context.args or []
     if len(args) < 2:
         await update.message.reply_text(
-            "用法：/use <模型名稱> <訊息>\n" "例如：/use gemma-4-31b 你好"
+            "用法：/use <模型名稱> <訊息>\n例如：/use gemma-4-31b 你好"
         )
         return
 
