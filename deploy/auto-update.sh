@@ -21,6 +21,9 @@ touch "${LOG_FILE}"
 
 log() { echo "$(date -Is) $*" >> "${LOG_FILE}"; }
 
+# shellcheck source=deploy/notify.sh
+source "${INSTALL_DIR}/deploy/notify.sh"
+
 cd "${INSTALL_DIR}"
 
 # Fetch without merging.
@@ -76,6 +79,11 @@ for r in runs:
 print("success")
 ')
 
+commit_subject=$(git log -1 --format='%s' "${remote_sha}" 2>/dev/null || echo "")
+short_old="${deployed_sha:0:7}"
+short_new="${remote_sha:0:7}"
+commit_url="https://github.com/${REPO}/commit/${remote_sha}"
+
 case "${checks_conclusion}" in
     success)
         log "commit ${remote_sha:0:8} CI green, deploying"
@@ -89,6 +97,9 @@ case "${checks_conclusion}" in
         # Record as deployed so we don't re-log on every cycle.
         # update.sh still won't run because we exit before reaching it.
         echo "${remote_sha}" > "${STATE_FILE}"
+        notify_telegram "⚠️ Echeneis: commit \`${short_new}\` CI 失敗，已跳過
+${commit_subject}
+[GitHub](${commit_url})"
         exit 0
         ;;
     *)
@@ -98,10 +109,22 @@ case "${checks_conclusion}" in
 esac
 
 # CI is green — run the existing update script.
+deploy_start=$(date +%s)
 if bash "${INSTALL_DIR}/deploy/update.sh" >> "${LOG_FILE}" 2>&1; then
+    deploy_elapsed=$(( $(date +%s) - deploy_start ))
     echo "${remote_sha}" > "${STATE_FILE}"
-    log "commit ${remote_sha:0:8} deployed successfully"
+    log "commit ${remote_sha:0:8} deployed successfully in ${deploy_elapsed}s"
+    range="${short_new}"
+    if [[ -n "${short_old}" ]]; then
+        range="${short_old}..${short_new}"
+    fi
+    notify_telegram "✅ Echeneis 已部署 \`${range}\` (${deploy_elapsed}s)
+${commit_subject}
+[GitHub](${commit_url})"
 else
     log "ERROR: update.sh failed for ${remote_sha:0:8}"
+    notify_telegram "❌ Echeneis 部署失敗 \`${short_new}\`
+${commit_subject}
+查看 /var/log/echeneis-deploy.log"
     exit 1
 fi

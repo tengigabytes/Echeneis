@@ -10,6 +10,7 @@ INSTALL_DIR="/opt/echeneis"
 SERVICE_FILE="${INSTALL_DIR}/deploy/echeneis.service"
 CRON_FILE="${INSTALL_DIR}/deploy/echeneis-anti-eviction.cron"
 AUTO_UPDATE_CRON="${INSTALL_DIR}/deploy/echeneis-auto-update.cron"
+DAILY_DIGEST_CRON="${INSTALL_DIR}/deploy/echeneis-daily-digest.cron"
 
 info()  { echo "[INFO]  $*"; }
 error() { echo "[ERROR] $*" >&2; }
@@ -40,8 +41,17 @@ info "Installing auto-update cron job"
 cp "${AUTO_UPDATE_CRON}" /etc/cron.d/echeneis-auto-update
 chmod 644 /etc/cron.d/echeneis-auto-update
 chmod +x "${INSTALL_DIR}/deploy/auto-update.sh"
+chmod +x "${INSTALL_DIR}/deploy/notify.sh"
 mkdir -p /var/lib/echeneis
 info "Auto-update cron installed (every 3 minutes, gated on GitHub CI)"
+
+# ── Daily digest cron ────────────────────────────────────────────────────────
+
+info "Installing daily digest cron job"
+cp "${DAILY_DIGEST_CRON}" /etc/cron.d/echeneis-daily-digest
+chmod 644 /etc/cron.d/echeneis-daily-digest
+chmod +x "${INSTALL_DIR}/deploy/daily-digest.sh"
+info "Daily digest cron installed (23:00 daily)"
 
 # ── Done ─────────────────────────────────────────────────────────────────────
 

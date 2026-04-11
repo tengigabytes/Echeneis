@@ -1,0 +1,4 @@
+# Echeneis daily digest: summary of quota usage and provider health.
+# Install to /etc/cron.d/echeneis-daily-digest
+# Runs at 23:00 server time.
+0 23 * * * root /opt/echeneis/deploy/daily-digest.sh
