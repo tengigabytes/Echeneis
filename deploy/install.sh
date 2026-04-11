@@ -9,6 +9,7 @@ set -euo pipefail
 INSTALL_DIR="/opt/echeneis"
 SERVICE_FILE="${INSTALL_DIR}/deploy/echeneis.service"
 CRON_FILE="${INSTALL_DIR}/deploy/echeneis-anti-eviction.cron"
+AUTO_UPDATE_CRON="${INSTALL_DIR}/deploy/echeneis-auto-update.cron"
 
 info()  { echo "[INFO]  $*"; }
 error() { echo "[ERROR] $*" >&2; }
@@ -32,6 +33,15 @@ cp "${CRON_FILE}" /etc/cron.d/echeneis-anti-eviction
 chmod 644 /etc/cron.d/echeneis-anti-eviction
 chmod +x "${INSTALL_DIR}/deploy/anti-eviction.sh"
 info "Anti-eviction cron installed (every 4 hours)"
+
+# ── Auto-update cron ─────────────────────────────────────────────────────────
+
+info "Installing auto-update cron job"
+cp "${AUTO_UPDATE_CRON}" /etc/cron.d/echeneis-auto-update
+chmod 644 /etc/cron.d/echeneis-auto-update
+chmod +x "${INSTALL_DIR}/deploy/auto-update.sh"
+mkdir -p /var/lib/echeneis
+info "Auto-update cron installed (every 3 minutes, gated on GitHub CI)"
 
 # ── Done ─────────────────────────────────────────────────────────────────────
 
