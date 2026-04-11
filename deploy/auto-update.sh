@@ -161,16 +161,18 @@ if bash "${INSTALL_DIR}/deploy/update.sh" >> "${LOG_FILE}" 2>&1; then
     if [[ -n "${short_old}" ]]; then
         range="${short_old}..${short_new}"
     fi
-    # Translate commit subjects to Traditional Chinese via the local
-    # gateway (dogfood). Must run BEFORE updating STATE_FILE so we still
-    # have the old deployed sha to compute the range.
-    change_summary=$(build_change_summary "${deployed_sha}" "${remote_sha}" "${INSTALL_DIR}" || true)
+    # Collect commit subjects in the deployed range BEFORE updating
+    # STATE_FILE so we still have the old deployed sha for the range.
+    if [[ -n "${deployed_sha}" ]]; then
+        change_summary=$(git log --format='- %s' "${deployed_sha}..${remote_sha}" 2>/dev/null || true)
+    else
+        change_summary=$(git log -1 --format='- %s' "${remote_sha}" 2>/dev/null || true)
+    fi
     echo "${remote_sha}" > "${STATE_FILE}"
     message="✅ Echeneis 已部署 ${range} (${deploy_elapsed}s)"
     if [[ -n "${change_summary}" ]]; then
         message="${message}
 
-本次修改：
 ${change_summary}"
     fi
     message="${message}
