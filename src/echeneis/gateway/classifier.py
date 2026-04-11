@@ -6,6 +6,7 @@ No API calls are spent on classification — pure keyword matching.
 """
 
 import logging
+import re
 from dataclasses import dataclass
 
 from echeneis.gateway.config import RoutingConfig
@@ -21,6 +22,18 @@ class Classification:
     tier: str
 
 
+def _compile_keyword(keyword: str) -> re.Pattern[str]:
+    """Compile a keyword into a search pattern.
+
+    ASCII keywords get word-boundary anchors so 'test' does not match
+    'latest' and 'code' does not match 'decode'. Non-ASCII keywords use
+    plain substring matching since CJK text has no word separators.
+    """
+    if keyword.isascii():
+        return re.compile(r"\b" + re.escape(keyword) + r"\b", re.IGNORECASE)
+    return re.compile(re.escape(keyword))
+
+
 class TaskClassifier:
     """Keyword-based task classifier.
 
@@ -30,10 +43,12 @@ class TaskClassifier:
 
     def __init__(self, config: RoutingConfig) -> None:
         self._config = config
-        self._keyword_map: dict[str, tuple[str, str]] = {}
+        self._patterns: list[tuple[re.Pattern[str], str, str, str]] = []
         for tt in config.task_types:
             for kw in tt.keywords:
-                self._keyword_map[kw.lower()] = (tt.name, tt.default_tier)
+                self._patterns.append(
+                    (_compile_keyword(kw), kw, tt.name, tt.default_tier)
+                )
 
     def classify(
         self,
@@ -62,10 +77,9 @@ class TaskClassifier:
         if has_image:
             return Classification(task_type="vision", tier="A")
 
-        # Keyword matching on lowercased text
-        text_lower = text.lower()
-        for keyword, (task_type, tier) in self._keyword_map.items():
-            if keyword in text_lower:
+        # Word-boundary (ASCII) or substring (CJK) pattern match
+        for pattern, keyword, task_type, tier in self._patterns:
+            if pattern.search(text):
                 logger.debug(
                     "Classified as %s (tier %s) via keyword '%s'",
                     task_type,

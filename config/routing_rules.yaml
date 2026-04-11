@@ -15,13 +15,13 @@ tiers:
     trigger:
       - default: true
     models:
-      translation: gemma-4-31b
+      translation: mistral-large-3      # ~1.2s p50, 6/6 term preservation
       code_generation: gemma-4-31b       # dense -deep attention for code
       code_review: gemma-4-31b           # dense -focused analysis
       general_qa: gemma-4-31b
       vision: gemma-4-31b               # dense -better image understanding
     fallback:
-      translation: mistral-large-3
+      translation: gemma-4-31b          # slower but equal quality
       code_generation: mistral-large-3
       code_review: mistral-large-3
       general_qa: cerebras-llama-8b
@@ -42,7 +42,23 @@ tiers:
 
 task_types:
   - name: translation
-    keywords: [translate, 翻譯, 翻成, translation]
+    keywords:
+      - translate
+      - translation
+      - 翻譯
+      - 翻成
+      - 翻一下
+      - 幫我翻
+      - 英譯
+      - 中譯
+      - 日譯
+      - 譯成
+      - in english
+      - in chinese
+      - in japanese
+      - to english
+      - to chinese
+      - to japanese
     default_tier: A
   - name: code_generation
     keywords: [code, implement, function, class, debug, test, lint, refactor]

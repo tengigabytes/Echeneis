@@ -42,12 +42,38 @@ _TEST_CONFIG = RoutingConfig.from_dict(
         "task_types": [
             {
                 "name": "translation",
-                "keywords": ["translate", "翻譯", "翻成", "translation"],
+                "keywords": [
+                    "translate",
+                    "translation",
+                    "翻譯",
+                    "翻成",
+                    "翻一下",
+                    "幫我翻",
+                    "英譯",
+                    "中譯",
+                    "日譯",
+                    "譯成",
+                    "in english",
+                    "in chinese",
+                    "in japanese",
+                    "to english",
+                    "to chinese",
+                    "to japanese",
+                ],
                 "default_tier": "A",
             },
             {
                 "name": "code_generation",
-                "keywords": ["code", "implement", "function", "debug", "refactor"],
+                "keywords": [
+                    "code",
+                    "implement",
+                    "function",
+                    "class",
+                    "debug",
+                    "test",
+                    "lint",
+                    "refactor",
+                ],
                 "default_tier": "A",
             },
             {
@@ -131,3 +157,59 @@ class TestDefaultFallback:
     def test_empty_text(self) -> None:
         result = _classifier().classify("")
         assert result == Classification(task_type="general_qa", tier="A")
+
+
+class TestWordBoundary:
+    """ASCII keywords must match whole words only (1b fix)."""
+
+    def test_test_does_not_match_latest(self) -> None:
+        result = _classifier().classify("what is the latest news?")
+        assert result.task_type == "general_qa"
+
+    def test_class_does_not_match_classmate(self) -> None:
+        result = _classifier().classify("my classmate asked a question")
+        assert result.task_type == "general_qa"
+
+    def test_code_does_not_match_decode(self) -> None:
+        result = _classifier().classify("decode this message for me")
+        assert result.task_type == "general_qa"
+
+    def test_function_does_not_match_dysfunctional(self) -> None:
+        result = _classifier().classify("this is dysfunctional behaviour")
+        assert result.task_type == "general_qa"
+
+    def test_test_still_matches_standalone(self) -> None:
+        result = _classifier().classify("write a test for this")
+        assert result.task_type == "code_generation"
+
+    def test_class_still_matches_standalone(self) -> None:
+        result = _classifier().classify("write a class for this model")
+        assert result.task_type == "code_generation"
+
+
+class TestTranslationKeywordExpansion:
+    """New translation phrasings must be detected (1a fix)."""
+
+    def test_fan_yi_xia(self) -> None:
+        result = _classifier().classify("幫我翻一下這段文字")
+        assert result == Classification(task_type="translation", tier="A")
+
+    def test_ying_yi(self) -> None:
+        result = _classifier().classify("這句話英譯中怎麼說")
+        assert result == Classification(task_type="translation", tier="A")
+
+    def test_zhong_yi(self) -> None:
+        result = _classifier().classify("中譯英給我看")
+        assert result == Classification(task_type="translation", tier="A")
+
+    def test_bang_wo_fan(self) -> None:
+        result = _classifier().classify("幫我翻成日文")
+        assert result == Classification(task_type="translation", tier="A")
+
+    def test_in_english(self) -> None:
+        result = _classifier().classify("say this in English please")
+        assert result == Classification(task_type="translation", tier="A")
+
+    def test_to_japanese(self) -> None:
+        result = _classifier().classify("convert this to Japanese")
+        assert result == Classification(task_type="translation", tier="A")
