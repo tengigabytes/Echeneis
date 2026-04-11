@@ -53,9 +53,35 @@ if [[ -n "${GITHUB_TOKEN:-}" ]]; then
     auth_header=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
 fi
 
-response=$(curl -fsSL "${auth_header[@]}" \
-    -H "Accept: application/vnd.github+json" \
-    "${api_url}" 2>&1) || {
+# github_api_get: curl a GitHub API URL with optional auth. If the auth
+# call returns 401 (token expired / revoked), clear the auth header and
+# retry anonymously — on public repos the read-only endpoints we use
+# are accessible without auth, just at a lower rate limit. Without this
+# fallback, a single expired PAT locks cron out of all future deploys.
+github_api_get() {
+    local url="$1"
+    local out
+    out=$(curl -fsSL "${auth_header[@]}" \
+        -H "Accept: application/vnd.github+json" \
+        "${url}" 2>&1) && {
+        printf '%s' "${out}"
+        return 0
+    }
+    if [[ ${#auth_header[@]} -gt 0 ]] && [[ "${out}" == *"error: 401"* ]]; then
+        log "GitHub API 401 with token — revoked or expired, falling back to anonymous"
+        auth_header=()
+        out=$(curl -fsSL \
+            -H "Accept: application/vnd.github+json" \
+            "${url}" 2>&1) && {
+            printf '%s' "${out}"
+            return 0
+        }
+    fi
+    printf '%s' "${out}"
+    return 1
+}
+
+response=$(github_api_get "${api_url}") || {
     log "ERROR: failed to query GitHub API for ${remote_sha}: ${response}"
     exit 1
 }
@@ -63,11 +89,10 @@ response=$(curl -fsSL "${auth_header[@]}" \
 state=$(echo "${response}" | python3 -c 'import sys,json; print(json.load(sys.stdin).get("state",""))')
 
 # Also check check-runs (Actions uses these, not classic statuses).
+# auth_header may have been cleared by the first call's 401 fallback.
 checks_url="https://api.github.com/repos/${REPO}/commits/${remote_sha}/check-runs"
-checks=$(curl -fsSL "${auth_header[@]}" \
-    -H "Accept: application/vnd.github+json" \
-    "${checks_url}" 2>&1) || {
-    log "ERROR: failed to query check-runs for ${remote_sha}"
+checks=$(github_api_get "${checks_url}") || {
+    log "ERROR: failed to query check-runs for ${remote_sha}: ${checks}"
     exit 1
 }
 
