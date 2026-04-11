@@ -6,6 +6,14 @@ CLAUDE.md
 .env.*
 !.env.example
 
+# SSH keys / secrets — never commit
+.key/
+*.pem
+*.key
+!src/**/*.key
+id_rsa
+id_ed25519
+
 # Python
 __pycache__/
 *.pyc

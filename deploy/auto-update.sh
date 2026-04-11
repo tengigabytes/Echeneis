@@ -12,6 +12,7 @@ set -euo pipefail
 
 INSTALL_DIR="/opt/echeneis"
 STATE_FILE="/var/lib/echeneis/deployed_sha"
+PENDING_FILE="/var/lib/echeneis/last_pending_sha"
 LOG_FILE="/var/log/echeneis-deploy.log"
 REPO="tengigabytes/Echeneis"
 BRANCH="main"
@@ -24,10 +25,19 @@ log() { echo "$(date -Is) $*" >> "${LOG_FILE}"; }
 # shellcheck source=deploy/notify.sh
 source "${INSTALL_DIR}/deploy/notify.sh"
 
+# Load /opt/echeneis/.env so GITHUB_TOKEN is available for the GitHub API
+# calls below (5000 req/hr authenticated vs 60 anon — anon rate limits
+# were silently killing cron runs before this fix).
+_load_env
+
 cd "${INSTALL_DIR}"
 
-# Fetch without merging.
-git fetch --quiet origin "${BRANCH}"
+# Fetch without merging. Log failures (network, auth) instead of exiting
+# silently through set -e.
+fetch_err=$(git fetch --quiet origin "${BRANCH}" 2>&1) || {
+    log "ERROR: git fetch failed: ${fetch_err}"
+    exit 1
+}
 remote_sha=$(git rev-parse "origin/${BRANCH}")
 deployed_sha=$(cat "${STATE_FILE}" 2>/dev/null || echo "")
 
@@ -87,9 +97,18 @@ commit_url="https://github.com/${REPO}/commit/${remote_sha}"
 case "${checks_conclusion}" in
     success)
         log "commit ${remote_sha:0:8} CI green, deploying"
+        rm -f "${PENDING_FILE}"
         ;;
     pending|none)
         # CI still running or not reported yet — try again next cron cycle.
+        # Log once per (sha, state) transition so we can tell from the log
+        # that cron is seeing pending rather than failing silently.
+        last_pending=$(cat "${PENDING_FILE}" 2>/dev/null || echo "")
+        marker="${remote_sha:0:8}:${checks_conclusion}"
+        if [[ "${marker}" != "${last_pending}" ]]; then
+            log "commit ${remote_sha:0:8} CI ${checks_conclusion}, waiting"
+            echo "${marker}" > "${PENDING_FILE}"
+        fi
         exit 0
         ;;
     failure)
