@@ -14,6 +14,14 @@ cd "${INSTALL_DIR}"
 info "Pulling latest code"
 git pull --ff-only
 
+# git pull as root writes updated files as root. Restore ownership to
+# the repo owner so subsequent cron invocations (also root) don't hit
+# git's safe.directory / dubious-ownership guard on mixed ownership.
+repo_owner=$(stat -c '%U:%G' "${INSTALL_DIR}/.git")
+if [[ -n "${repo_owner}" && "${repo_owner}" != ":" ]]; then
+    chown -R "${repo_owner}" "${INSTALL_DIR}" 2>/dev/null || true
+fi
+
 info "Rebuilding Docker images"
 docker compose build
 
