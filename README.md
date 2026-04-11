@@ -14,7 +14,6 @@ A self-hosted AI gateway that unifies multiple LLM providers into a single OpenA
 - **Rate limit management** — tracks quotas across all providers, prevents wasted requests
 - **Telegram Bot** — translation, summarization, vision, and document processing
 - **MCP Server** — tool call entry point for Claude Code and other AI agents
-- **CLI** — `ech` command for direct local invocation
 
 ## Architecture
 
@@ -23,7 +22,6 @@ graph TD
     subgraph Clients
         TB[Telegram Bot]
         MCP[MCP Server]
-        CLI[CLI — ech]
     end
 
     subgraph Gateway
@@ -48,7 +46,6 @@ graph TD
 
     TB --> TC
     MCP --> TC
-    CLI --> TC
 
     TC --> TS
     TC --> TA
@@ -128,8 +125,7 @@ Echeneis/
 ├── src/echeneis/
 │   ├── gateway/               # Core routing and health checks
 │   ├── bot/                   # Telegram bot
-│   ├── mcp/                   # MCP server for agent integration
-│   └── cli/                   # ech CLI tool
+│   └── mcp/                   # MCP server for agent integration
 ├── tests/
 ├── docs/
 └── docker-compose.yml
