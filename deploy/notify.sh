@@ -134,6 +134,24 @@ print(json.dumps({"messages": [{"role": "user", "content": prompt}]}))
         return 0
     }
 
+    # Gateway may still be booting after update.sh's systemctl restart —
+    # poll /health briefly so cron-triggered deploys don't fall back to the
+    # raw English commits just because the container isn't listening yet.
+    local health_ok=0
+    local _i
+    for _i in 1 2 3 4 5 6 7 8 9 10; do
+        if curl -fsS -m 2 "${_ECHENEIS_GATEWAY_URL}/health" >/dev/null 2>&1; then
+            health_ok=1
+            break
+        fi
+        sleep 3
+    done
+    if [[ "${health_ok}" != "1" ]]; then
+        _notify_log "build_change_summary: gateway /health not ready after 30s, using English fallback"
+        echo "${commits}"
+        return 0
+    fi
+
     local response
     response=$(curl -fsS -m 20 \
         -X POST "${_ECHENEIS_GATEWAY_URL}/chat/completions" \
