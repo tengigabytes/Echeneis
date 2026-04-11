@@ -112,15 +112,27 @@ esac
 deploy_start=$(date +%s)
 if bash "${INSTALL_DIR}/deploy/update.sh" >> "${LOG_FILE}" 2>&1; then
     deploy_elapsed=$(( $(date +%s) - deploy_start ))
-    echo "${remote_sha}" > "${STATE_FILE}"
     log "commit ${remote_sha:0:8} deployed successfully in ${deploy_elapsed}s"
     range="${short_new}"
     if [[ -n "${short_old}" ]]; then
         range="${short_old}..${short_new}"
     fi
-    notify_telegram "✅ Echeneis 已部署 \`${range}\` (${deploy_elapsed}s)
-${commit_subject}
-[GitHub](${commit_url})"
+    # Translate commit subjects to Traditional Chinese via the local
+    # gateway (dogfood). Must run BEFORE updating STATE_FILE so we still
+    # have the old deployed sha to compute the range.
+    change_summary=$(build_change_summary "${deployed_sha}" "${remote_sha}" "${INSTALL_DIR}" || true)
+    echo "${remote_sha}" > "${STATE_FILE}"
+    message="✅ Echeneis 已部署 ${range} (${deploy_elapsed}s)"
+    if [[ -n "${change_summary}" ]]; then
+        message="${message}
+
+本次修改：
+${change_summary}"
+    fi
+    message="${message}
+
+${commit_url}"
+    notify_telegram "${message}" ""
 else
     log "ERROR: update.sh failed for ${remote_sha:0:8}"
     notify_telegram "❌ Echeneis 部署失敗 \`${short_new}\`
