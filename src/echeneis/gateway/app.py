@@ -116,11 +116,11 @@ def create_app(
         try:
             if requested_model:
                 logger.info("Direct model request: %s", requested_model)
-                response = await router.route_direct(
+                routed = await router.route_direct(
                     requested_model, messages, **extra_params
                 )
             else:
-                response = await router.route(classification, messages, **extra_params)
+                routed = await router.route(classification, messages, **extra_params)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except RuntimeError as e:
@@ -128,7 +128,9 @@ def create_app(
             raise HTTPException(status_code=502, detail=str(e))
 
         # litellm returns a ModelResponse; convert to dict for JSON
-        return JSONResponse(content=response.model_dump())
+        resp_dict = routed.response.model_dump()
+        resp_dict["_echeneis_model"] = routed.model_name
+        return JSONResponse(content=resp_dict)
 
     @app.get("/health")
     async def health() -> dict[str, Any]:

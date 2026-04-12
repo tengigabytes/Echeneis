@@ -28,6 +28,14 @@ class ModelEntry:
     api_base: str | None = None
 
 
+@dataclass
+class RoutedResponse:
+    """Result of a routing decision — the LLM response plus which model served it."""
+
+    response: Any
+    model_name: str  # Short name, e.g. "gemma-4-31b"
+
+
 # Maps short model names to their resolved litellm params.
 ModelRegistry = dict[str, ModelEntry]
 
@@ -157,7 +165,7 @@ class Router:
         classification: Classification,
         messages: list[dict[str, Any]],
         **kwargs: Any,
-    ) -> Any:
+    ) -> RoutedResponse:
         """Route a request to the appropriate model with failover.
 
         Args:
@@ -166,7 +174,7 @@ class Router:
             **kwargs: Additional params passed to litellm.acompletion.
 
         Returns:
-            litellm ModelResponse.
+            RoutedResponse with the LLM response and the short model name.
 
         Raises:
             RuntimeError: If all candidate models fail.
@@ -206,7 +214,7 @@ class Router:
                 self._health.record_success(short_name)
                 if self._usage:
                     self._usage.record_request(short_name)
-                return response
+                return RoutedResponse(response=response, model_name=short_name)
 
             except litellm.RateLimitError:
                 logger.warning("Rate limited on %s, failing over", short_name)
@@ -256,7 +264,7 @@ class Router:
         short_name: str,
         messages: list[dict[str, Any]],
         **kwargs: Any,
-    ) -> Any:
+    ) -> RoutedResponse:
         """Route a request directly to a specific model, bypassing classification.
 
         Args:
@@ -265,7 +273,7 @@ class Router:
             **kwargs: Additional params passed to litellm.acompletion.
 
         Returns:
-            litellm ModelResponse.
+            RoutedResponse with the LLM response and model name.
 
         Raises:
             ValueError: If the model name is not found in the registry.
@@ -288,7 +296,7 @@ class Router:
         try:
             response = await litellm.acompletion(**call_kwargs)
             self._health.record_success(short_name)
-            return response
+            return RoutedResponse(response=response, model_name=short_name)
         except Exception as e:
             self._health.record_failure(short_name, getattr(e, "status_code", 500))
             raise RuntimeError(f"Model {short_name} failed: {e}") from e

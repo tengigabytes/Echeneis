@@ -78,20 +78,28 @@ async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     convo.store_user(update.message.message_id, text, parent_id=parent_id)
     messages = convo.build_messages(update.message.message_id)
 
+    # Session sticky: reuse the model from the previous turn in this chain
+    chain_model = convo.get_chain_model(update.message.message_id)
+
     sent = await update.message.reply_text("處理中…")
 
     try:
         started = time.perf_counter()
         result = await gateway.chat(
             messages=messages,
+            model=chain_model,
             max_tokens=_DEFAULT_MAX_TOKENS,
         )
         elapsed = time.perf_counter() - started
 
-        # Store assistant reply for future chain lookups
+        # Store assistant reply with model for future session sticky
         assistant_text = result["choices"][0]["message"]["content"]
+        routed_model = result.get("_echeneis_model")
         convo.store_assistant(
-            sent.message_id, assistant_text, parent_id=update.message.message_id
+            sent.message_id,
+            assistant_text,
+            parent_id=update.message.message_id,
+            model=routed_model,
         )
 
         reply = _format_reply(result, elapsed)
@@ -131,17 +139,23 @@ async def photo_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         # Store user message (vision content) and build history chain
         convo.store_user(update.message.message_id, content, parent_id=parent_id)
         messages = convo.build_messages(update.message.message_id)
+        chain_model = convo.get_chain_model(update.message.message_id)
 
         started = time.perf_counter()
         result = await gateway.chat(
             messages=messages,
+            model=chain_model,
             max_tokens=_DEFAULT_MAX_TOKENS,
         )
         elapsed = time.perf_counter() - started
 
         assistant_text = result["choices"][0]["message"]["content"]
+        routed_model = result.get("_echeneis_model")
         convo.store_assistant(
-            sent.message_id, assistant_text, parent_id=update.message.message_id
+            sent.message_id,
+            assistant_text,
+            parent_id=update.message.message_id,
+            model=routed_model,
         )
 
         reply = _format_reply(result, elapsed)
@@ -198,17 +212,23 @@ async def document_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
         convo.store_user(update.message.message_id, prompt, parent_id=parent_id)
         messages = convo.build_messages(update.message.message_id)
+        chain_model = convo.get_chain_model(update.message.message_id)
 
         started = time.perf_counter()
         result = await gateway.chat(
             messages=messages,
+            model=chain_model,
             max_tokens=_DEFAULT_MAX_TOKENS,
         )
         elapsed = time.perf_counter() - started
 
         assistant_text = result["choices"][0]["message"]["content"]
+        routed_model = result.get("_echeneis_model")
         convo.store_assistant(
-            sent.message_id, assistant_text, parent_id=update.message.message_id
+            sent.message_id,
+            assistant_text,
+            parent_id=update.message.message_id,
+            model=routed_model,
         )
 
         reply = _format_reply(result, elapsed)

@@ -67,12 +67,12 @@ class TestChatCompletions:
 
     def test_routes_translation_to_mistral(self, client: TestClient) -> None:
         """Verify a translation request is routed to the correct model."""
-        fake_resp = MagicMock()
-        fake_resp.model_dump.return_value = {
+        fake_llm_resp = MagicMock()
+        fake_llm_resp.model_dump.return_value = {
             "id": "test",
             "choices": [{"message": {"content": "你好"}}],
         }
-        mock_acompletion = AsyncMock(return_value=fake_resp)
+        mock_acompletion = AsyncMock(return_value=fake_llm_resp)
 
         with patch("echeneis.gateway.router.litellm.acompletion", mock_acompletion):
             resp = client.post(
@@ -89,12 +89,12 @@ class TestChatCompletions:
 
     def test_routes_code_to_gemma(self, client: TestClient) -> None:
         """Verify a code request is routed to the correct model."""
-        fake_resp = MagicMock()
-        fake_resp.model_dump.return_value = {
+        fake_llm_resp = MagicMock()
+        fake_llm_resp.model_dump.return_value = {
             "id": "test",
             "choices": [{"message": {"content": "def foo(): pass"}}],
         }
-        mock_acompletion = AsyncMock(return_value=fake_resp)
+        mock_acompletion = AsyncMock(return_value=fake_llm_resp)
 
         with patch("echeneis.gateway.router.litellm.acompletion", mock_acompletion):
             resp = client.post(
@@ -111,12 +111,12 @@ class TestChatCompletions:
 
     def test_think_command_routes_to_tier_s(self, client: TestClient) -> None:
         """Verify /think command triggers tier S routing."""
-        fake_resp = MagicMock()
-        fake_resp.model_dump.return_value = {
+        fake_llm_resp = MagicMock()
+        fake_llm_resp.model_dump.return_value = {
             "id": "test",
             "choices": [{"message": {"content": "deep thought"}}],
         }
-        mock_acompletion = AsyncMock(return_value=fake_resp)
+        mock_acompletion = AsyncMock(return_value=fake_llm_resp)
 
         with patch("echeneis.gateway.router.litellm.acompletion", mock_acompletion):
             resp = client.post(
@@ -134,12 +134,12 @@ class TestChatCompletions:
 
     def test_fast_command_routes_to_tier_b(self, client: TestClient) -> None:
         """Verify /fast command triggers tier B routing."""
-        fake_resp = MagicMock()
-        fake_resp.model_dump.return_value = {
+        fake_llm_resp = MagicMock()
+        fake_llm_resp.model_dump.return_value = {
             "id": "test",
             "choices": [{"message": {"content": "quick answer"}}],
         }
-        mock_acompletion = AsyncMock(return_value=fake_resp)
+        mock_acompletion = AsyncMock(return_value=fake_llm_resp)
 
         with patch("echeneis.gateway.router.litellm.acompletion", mock_acompletion):
             resp = client.post(

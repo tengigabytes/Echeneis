@@ -40,6 +40,7 @@ class _Entry:
     content: str | list[dict[str, Any]]  # text or vision content
     parent_id: int | None  # message_id of the previous bot reply
     timestamp: float = field(default_factory=time.time)
+    model: str | None = None  # short model name (assistant entries only)
 
 
 class ConversationStore:
@@ -80,6 +81,7 @@ class ConversationStore:
         message_id: int,
         content: str,
         parent_id: int,
+        model: str | None = None,
     ) -> None:
         """Record a bot (assistant) reply.
 
@@ -87,9 +89,10 @@ class ConversationStore:
             message_id: Telegram message_id of the bot's reply.
             content: The assistant's response text.
             parent_id: message_id of the user message this replies to.
+            model: Short model name that generated this reply.
         """
         self._entries[message_id] = _Entry(
-            role="assistant", content=content, parent_id=parent_id
+            role="assistant", content=content, parent_id=parent_id, model=model
         )
 
     def build_messages(
@@ -123,6 +126,33 @@ class ConversationStore:
 
         # Prepend system prompt
         return [{"role": "system", "content": TELEGRAM_SYSTEM_PROMPT}] + chain
+
+    def get_chain_model(self, user_message_id: int) -> str | None:
+        """Find the model used in the most recent assistant reply in the chain.
+
+        Walks backwards from the user message's parent (the bot reply
+        being replied to) looking for the first assistant entry with a
+        stored model name.
+
+        Args:
+            user_message_id: The current user message's Telegram message_id.
+
+        Returns:
+            Short model name, or None if this is a new conversation or
+            no model was recorded.
+        """
+        entry = self._entries.get(user_message_id)
+        if entry is None:
+            return None
+
+        # Walk from the parent (the bot message being replied to)
+        current_id = entry.parent_id
+        while current_id is not None and current_id in self._entries:
+            parent = self._entries[current_id]
+            if parent.role == "assistant" and parent.model:
+                return parent.model
+            current_id = parent.parent_id
+        return None
 
     def _maybe_evict(self) -> None:
         """Remove entries older than _EVICT_AGE, at most once per _EVICT_INTERVAL."""

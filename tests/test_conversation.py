@@ -107,6 +107,33 @@ class TestConversationStore:
 
         assert messages[1]["content"] == vision_content
 
+    def test_get_chain_model_returns_last_model(self):
+        """get_chain_model returns the model from the most recent assistant reply."""
+        store = ConversationStore()
+
+        store.store_user(10, "hello")
+        store.store_assistant(11, "hi", parent_id=10, model="gemma-4-31b")
+        store.store_user(12, "follow up", parent_id=11)
+
+        assert store.get_chain_model(12) == "gemma-4-31b"
+
+    def test_get_chain_model_none_for_new_conversation(self):
+        """get_chain_model returns None for a fresh message (no reply chain)."""
+        store = ConversationStore()
+
+        store.store_user(10, "new question")
+        assert store.get_chain_model(10) is None
+
+    def test_get_chain_model_none_when_no_model_stored(self):
+        """get_chain_model returns None if assistant reply has no model."""
+        store = ConversationStore()
+
+        store.store_user(10, "hello")
+        store.store_assistant(11, "hi", parent_id=10)  # no model
+        store.store_user(12, "follow up", parent_id=11)
+
+        assert store.get_chain_model(12) is None
+
     def test_eviction_removes_old_entries(self, monkeypatch):
         """Entries older than _EVICT_AGE are cleaned up."""
         store = ConversationStore()
