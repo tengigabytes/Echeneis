@@ -1,7 +1,6 @@
 """Tests for the bot task registry."""
 
 import json
-import time
 
 import pytest
 
