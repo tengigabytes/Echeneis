@@ -21,7 +21,7 @@ VISION_MODELS: set[str] = {
 # Per-provider inter-request delay (seconds).
 # Conservative defaults to stay within free-tier rate limits.
 PROVIDER_DELAYS: dict[str, float] = {
-    "gemini": 4.0,  # Google AI Studio: 5-15 RPM free tier
+    "gemini": 5.0,  # Google AI Studio: 15 RPM = 4s + margin for request time
     "mistral": 1.5,  # Mistral: 1 req/s hard limit
     "openrouter": 3.0,  # OpenRouter: 20 RPM, 50 RPD shared
     "groq": 2.0,  # Groq: 30 RPM

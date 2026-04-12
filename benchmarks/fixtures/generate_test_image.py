@@ -1,7 +1,6 @@
-"""Generate a placeholder register map image for vision benchmarks.
+"""Generate a readable register map image for vision benchmarks.
 
-Creates a simple table-style image with SX1276 register data.
-Replace the output with a real datasheet screenshot for better testing.
+Creates a clean table-style image with SX1276 register data using Pillow.
 
 Usage:
     python benchmarks/fixtures/generate_test_image.py
@@ -9,87 +8,91 @@ Usage:
 
 from __future__ import annotations
 
-import struct
-import zlib
 from pathlib import Path
 
+from PIL import Image, ImageDraw, ImageFont
 
-def _create_minimal_png(width: int, height: int, text_rows: list[str]) -> bytes:
-    """Create a minimal valid PNG with text rendered as colored blocks.
+_REGISTERS = [
+    ("0x00", "RegFifo", "0x00", "FIFO data input/output"),
+    ("0x01", "RegOpMode", "0x09", "Operating mode & LoRa/FSK"),
+    ("0x06", "RegFrMsb", "0x6C", "RF carrier freq MSB"),
+    ("0x09", "RegPaConfig", "0x4F", "PA selection & output power"),
+    ("0x0B", "RegOcp", "0x2B", "Over current protection"),
+    ("0x0C", "RegLna", "0x20", "LNA settings"),
+    ("0x0D", "RegFifoAddrPtr", "0x00", "FIFO SPI pointer"),
+    ("0x1D", "RegModemConfig1", "0x72", "BW, Coding Rate, Header"),
+    ("0x1E", "RegModemConfig2", "0x70", "SF, TX CRC, RX timeout"),
+]
 
-    This creates a very basic image — enough for vision models to parse
-    but not a pixel-perfect register map. For real benchmarks, replace
-    with an actual datasheet screenshot.
-    """
-    # Create a simple white image with black text-like patterns
-    # Each character becomes an 8x12 pixel block
-    img_data = []
-    char_h = 14
-    char_w = 8
-    actual_h = len(text_rows) * char_h + 20
-    actual_w = max(len(r) for r in text_rows) * char_w + 20
+_HEADER = ("Address", "Register", "Default", "Description")
 
-    for y in range(actual_h):
-        row_bytes = b"\x00"  # filter byte
-        for x in range(actual_w):
-            text_row_idx = (y - 10) // char_h
-            text_col_idx = (x - 10) // char_w
-            in_text = (
-                0 <= text_row_idx < len(text_rows)
-                and 0 <= text_col_idx < len(text_rows[text_row_idx])
-                and text_rows[text_row_idx][text_col_idx] != " "
-                and (y - 10) % char_h > 1
-                and (y - 10) % char_h < char_h - 1
-                and (x - 10) % char_w > 0
-                and (x - 10) % char_w < char_w - 1
-            )
-            if in_text:
-                row_bytes += b"\x20\x20\x20"  # dark gray
-            else:
-                row_bytes += b"\xff\xff\xff"  # white
-        img_data.append(row_bytes)
-
-    raw = b"".join(img_data)
-
-    # Build PNG
-    def chunk(ctype: bytes, data: bytes) -> bytes:
-        c = ctype + data
-        crc = zlib.crc32(c) & 0xFFFFFFFF
-        return struct.pack(">I", len(data)) + c + struct.pack(">I", crc)
-
-    ihdr = struct.pack(">IIBBBBB", actual_w, actual_h, 8, 2, 0, 0, 0)
-    idat = zlib.compress(raw)
-
-    return (
-        b"\x89PNG\r\n\x1a\n"
-        + chunk(b"IHDR", ihdr)
-        + chunk(b"IDAT", idat)
-        + chunk(b"IEND", b"")
-    )
+# Column widths in pixels
+_COL_W = [80, 160, 80, 280]
+_ROW_H = 28
+_PAD = 12
+_MARGIN = 20
 
 
 def main() -> None:
     """Generate the test register map image."""
-    rows = [
-        "SX1276 Register Map (Selected)",
-        "",
-        "Address  Register         Default  Description",
-        "-------  ---------------  -------  ---------------------------",
-        "0x00     RegFifo          0x00     FIFO data input/output",
-        "0x01     RegOpMode        0x09     Operating mode & LoRa/FSK",
-        "0x06     RegFrMsb         0x6C     RF carrier freq MSB",
-        "0x09     RegPaConfig      0x4F     PA selection & output power",
-        "0x0B     RegOcp           0x2B     Over current protection",
-        "0x0C     RegLna           0x20     LNA settings",
-        "0x0D     RegFifoAddrPtr   0x00     FIFO SPI pointer",
-        "0x1D     RegModemConfig1  0x72     BW, Coding Rate, Header",
-        "0x1E     RegModemConfig2  0x70     SF, TX CRC, RX timeout",
-    ]
+    font = ImageFont.load_default(size=16)
+    title_font = ImageFont.load_default(size=20)
 
-    png_data = _create_minimal_png(600, 250, rows)
+    n_rows = len(_REGISTERS) + 1  # +1 for header
+    width = sum(_COL_W) + _MARGIN * 2
+    height = _ROW_H * n_rows + _MARGIN * 2 + 40  # +40 for title
+
+    img = Image.new("RGB", (width, height), "white")
+    draw = ImageDraw.Draw(img)
+
+    # Title
+    draw.text(
+        (_MARGIN, _MARGIN),
+        "SX1276 Register Map (Selected Registers)",
+        fill="black",
+        font=title_font,
+    )
+
+    y_start = _MARGIN + 36
+
+    # Draw header
+    x = _MARGIN
+    for i, hdr in enumerate(_HEADER):
+        draw.text((x + _PAD, y_start + 4), hdr, fill="black", font=font)
+        x += _COL_W[i]
+
+    # Header underline
+    draw.line(
+        [(_MARGIN, y_start + _ROW_H), (width - _MARGIN, y_start + _ROW_H)],
+        fill="black",
+        width=2,
+    )
+
+    # Draw rows
+    for row_idx, reg in enumerate(_REGISTERS):
+        y = y_start + _ROW_H * (row_idx + 1)
+        x = _MARGIN
+        for col_idx, val in enumerate(reg):
+            draw.text((x + _PAD, y + 4), val, fill="black", font=font)
+            x += _COL_W[col_idx]
+
+        # Alternating row background for readability
+        if row_idx % 2 == 0:
+            y_top = y
+            draw.rectangle(
+                [(_MARGIN, y_top), (width - _MARGIN, y_top + _ROW_H)],
+                fill="#f0f0f0",
+                outline=None,
+            )
+            # Redraw text over background
+            x = _MARGIN
+            for col_idx, val in enumerate(reg):
+                draw.text((x + _PAD, y + 4), val, fill="black", font=font)
+                x += _COL_W[col_idx]
+
     out_path = Path(__file__).parent / "register_map.png"
-    out_path.write_bytes(png_data)
-    print(f"Generated {out_path} ({len(png_data)} bytes)")
+    img.save(out_path)
+    print(f"Generated {out_path} ({out_path.stat().st_size} bytes)")
 
 
 if __name__ == "__main__":
