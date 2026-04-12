@@ -42,7 +42,7 @@ cp "${AUTO_UPDATE_CRON}" /etc/cron.d/echeneis-auto-update
 chmod 644 /etc/cron.d/echeneis-auto-update
 chmod +x "${INSTALL_DIR}/deploy/auto-update.sh"
 chmod +x "${INSTALL_DIR}/deploy/notify.sh"
-mkdir -p /var/lib/echeneis
+mkdir -p /var/lib/echeneis /var/lib/echeneis/state
 info "Auto-update cron installed (every 3 minutes, gated on GitHub CI)"
 
 # ── Daily digest cron ────────────────────────────────────────────────────────

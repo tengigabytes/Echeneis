@@ -152,7 +152,27 @@ ${commit_subject}
         ;;
 esac
 
-# CI is green — run the existing update script.
+# CI is green — check if the bot has active tasks before restarting.
+TASK_STATE="/var/lib/echeneis/state/active_tasks.json"
+if [[ -f "${TASK_STATE}" ]]; then
+    busy=$(python3 -c '
+import json, time, sys
+try:
+    data = json.load(open(sys.argv[1]))
+    for t in data.get("tasks", {}).values():
+        elapsed_min = (time.time() - t["started_at"]) / 60
+        if elapsed_min <= t.get("max_minutes", 30):
+            print(t["name"])
+            sys.exit(0)
+except Exception:
+    pass
+' "${TASK_STATE}" 2>/dev/null || true)
+    if [[ -n "${busy}" ]]; then
+        log "commit ${remote_sha:0:8} deploy deferred — active task: ${busy}"
+        exit 0
+    fi
+fi
+
 deploy_start=$(date +%s)
 if bash "${INSTALL_DIR}/deploy/update.sh" >> "${LOG_FILE}" 2>&1; then
     deploy_elapsed=$(( $(date +%s) - deploy_start ))

@@ -149,6 +149,27 @@ sudo bash /opt/echeneis/deploy/update.sh
 
 This runs `git pull`, rebuilds Docker images, and restarts the service.
 
+### Auto-update
+
+A cron job (`deploy/echeneis-auto-update.cron`) polls `origin/main` every
+3 minutes. When a new commit is detected with green CI, it triggers
+`update.sh` automatically.
+
+The auto-update is **task-aware**: before restarting the service it checks
+`/var/lib/echeneis/state/active_tasks.json` for running long-lived tasks
+(benchmarks, etc.). If a task is active, the deploy is deferred to the
+next cron cycle. Tasks carry a `max_minutes` guard — if the bot crashes
+mid-task, the stale entry expires automatically so deploys are never
+blocked indefinitely.
+
+```bash
+# Check active tasks
+cat /var/lib/echeneis/state/active_tasks.json
+
+# View auto-update log
+tail -20 /var/log/echeneis-deploy.log
+```
+
 ## 9. Anti-Eviction
 
 Oracle Cloud Free Tier reclaims idle instances when CPU usage drops below

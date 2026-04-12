@@ -13,8 +13,11 @@ from telegram.ext import ContextTypes
 
 from echeneis.bot.handlers.messages import _send_reply
 from echeneis.bot.middleware import is_authorized
+from echeneis.bot.task_registry import TaskRegistry
 
 logger = logging.getLogger(__name__)
+
+_task_registry = TaskRegistry()
 
 # Simple lock to prevent concurrent benchmark runs.
 _bench_lock = asyncio.Lock()
@@ -161,26 +164,31 @@ async def _run_bench_background(
         from benchmarks.harness import BenchmarkHarness
         from benchmarks.results import ResultStore
 
+        dim_desc = ", ".join(dimensions) if dimensions else "all"
+        model_desc = ", ".join(models) if models else "all"
+        detail = f"dimensions={dim_desc} models={model_desc}"
+
         async with _bench_lock:
-            started = time.perf_counter()
+            async with _task_registry.track("benchmark", max_minutes=30, detail=detail):
+                started = time.perf_counter()
 
-            harness = BenchmarkHarness(
-                models=models,
-                dimensions=dimensions,
-            )
-            results = await harness.run()
+                harness = BenchmarkHarness(
+                    models=models,
+                    dimensions=dimensions,
+                )
+                results = await harness.run()
 
-            elapsed = time.perf_counter() - started
+                elapsed = time.perf_counter() - started
 
-            # Save results
-            store = ResultStore()
-            store.save(results)
+                # Save results
+                store = ResultStore()
+                store.save(results)
 
-            # Format and send
-            report = _format_bench_results(results)
-            report += f"\n\n⏱ 總耗時：{elapsed:.1f}s"
+                # Format and send
+                report = _format_bench_results(results)
+                report += f"\n\n⏱ 總耗時：{elapsed:.1f}s"
 
-            await _send_reply(status_msg, report)
+                await _send_reply(status_msg, report)
 
     except Exception as e:
         logger.error("Benchmark failed: %s", e, exc_info=True)

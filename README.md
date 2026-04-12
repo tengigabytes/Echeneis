@@ -15,6 +15,7 @@ A self-hosted AI gateway that unifies multiple LLM providers into a single OpenA
 - **Telegram Bot** — multi-turn conversation (reply to continue), vision, translation, and document processing
 - **MCP Server** — tool call entry point for Claude Code and other AI agents
 - **Benchmark suite** — automated 7-dimension evaluation across all providers, runnable via CLI or Telegram `/bench`
+- **Graceful auto-deploy** — defers service restart when long-running tasks (benchmarks, etc.) are active
 
 ## Architecture
 
