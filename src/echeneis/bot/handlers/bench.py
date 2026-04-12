@@ -155,12 +155,13 @@ async def _run_bench_background(
         dimensions: Dimension filter (None = all).
         models: Model filter (None = all available).
     """
-    # Lazy import to avoid circular deps and keep bot startup fast
-    from benchmarks.harness import BenchmarkHarness
-    from benchmarks.results import ResultStore
+    try:
+        # Lazy import to avoid circular deps and keep bot startup fast.
+        # Must be inside try so ImportError is caught and reported.
+        from benchmarks.harness import BenchmarkHarness
+        from benchmarks.results import ResultStore
 
-    async with _bench_lock:
-        try:
+        async with _bench_lock:
             started = time.perf_counter()
 
             harness = BenchmarkHarness(
@@ -181,9 +182,9 @@ async def _run_bench_background(
 
             await _send_reply(status_msg, report)
 
-        except Exception as e:
-            logger.error("Benchmark failed: %s", e)
-            try:
-                await status_msg.edit_text(f"❌ Benchmark 執行失敗：{e}")
-            except Exception:
-                pass
+    except Exception as e:
+        logger.error("Benchmark failed: %s", e, exc_info=True)
+        try:
+            await status_msg.edit_text(f"❌ Benchmark 執行失敗：{e}")
+        except Exception:
+            pass
