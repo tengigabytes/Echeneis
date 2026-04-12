@@ -12,7 +12,7 @@ A self-hosted AI gateway that unifies multiple LLM providers into a single OpenA
 - **Tiered routing** — task classifier routes requests to S/A/B model tiers based on complexity
 - **Auto failover** — per-provider rate limit tracking with automatic fallback within tiers
 - **Rate limit management** — tracks quotas across all providers, prevents wasted requests
-- **Telegram Bot** — translation, summarization, vision, and document processing
+- **Telegram Bot** — multi-turn conversation (reply to continue), vision, translation, and document processing
 - **MCP Server** — tool call entry point for Claude Code and other AI agents
 
 ## Architecture
