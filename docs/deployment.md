@@ -297,6 +297,22 @@ docker stats --no-stream
 sudo systemctl restart echeneis
 ```
 
+### Quota shows 0 after restart
+
+RPD (requests per day) counters are persisted to
+`/var/lib/echeneis/state/usage_rpd.jsonl`. Both the gateway and bot
+containers must mount this shared state volume. If quota shows 0
+unexpectedly, verify:
+
+```bash
+# Check state file exists and has entries
+cat /var/lib/echeneis/state/usage_rpd.jsonl | wc -l
+
+# Verify both containers mount the state volume
+docker inspect echeneis-gateway-1 | grep -A2 state
+docker inspect echeneis-bot-1 | grep -A2 state
+```
+
 ### Disk space
 
 Docker logs are capped at 30 MB per service (10m x 3 files).

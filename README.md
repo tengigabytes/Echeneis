@@ -11,7 +11,7 @@ A self-hosted AI gateway that unifies multiple LLM providers into a single OpenA
 - **Unified OpenAI-compatible endpoint** — drop-in replacement for any OpenAI SDK client
 - **Tiered routing** — task classifier routes requests to S/A/B model tiers based on complexity
 - **Auto failover** — per-provider rate limit tracking with automatic fallback within tiers
-- **Rate limit management** — tracks quotas across all providers, prevents wasted requests
+- **Rate limit management** — tracks quotas across all providers with persistent RPD counters that survive restarts
 - **Telegram Bot** — multi-turn conversation (reply to continue), vision, translation, and document processing
 - **System monitoring** — `/status` dashboard, proactive alerts for VM resources, quota exhaustion, and circuit breaker events
 - **MCP Server** — tool call entry point for Claude Code and other AI agents
