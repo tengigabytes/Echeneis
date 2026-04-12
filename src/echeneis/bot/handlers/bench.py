@@ -73,22 +73,15 @@ def _format_bench_results(results: list) -> str:
                 if dim_name == "latency":
                     p50 = r.raw.get("p50_ms", 0)
                     p95 = r.raw.get("p95_ms", 0)
-                    lines.append(
-                        f"  {r.model}: p50={p50:.0f}ms p95={p95:.0f}ms"
-                    )
+                    lines.append(f"  {r.model}: p50={p50:.0f}ms p95={p95:.0f}ms")
                 elif dim_name == "rate_limit":
                     rate = r.raw.get("success_rate", 0)
                     total_ms = r.raw.get("total_ms", 0)
-                    lines.append(
-                        f"  成功率={rate:.0%} 耗時={total_ms:.0f}ms"
-                    )
+                    lines.append(f"  成功率={rate:.0%} 耗時={total_ms:.0f}ms")
                 else:
                     total = r.raw.get("total", "?")
                     dur = r.duration_ms
-                    lines.append(
-                        f"  {r.model}: {r.score:.0f}/{total}"
-                        f" ({dur:.0f}ms)"
-                    )
+                    lines.append(f"  {r.model}: {r.score:.0f}/{total} ({dur:.0f}ms)")
         lines.append("")
 
     # Summary counts
@@ -99,9 +92,7 @@ def _format_bench_results(results: list) -> str:
     return "\n".join(lines)
 
 
-async def bench_command(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
+async def bench_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /bench — run benchmarks and report results.
 
     Supports:
@@ -126,9 +117,7 @@ async def bench_command(
             return
         if dim_arg != "all":
             if dim_arg not in _VALID_DIMENSIONS:
-                await update.message.reply_text(
-                    f"未知維度：{dim_arg}\n\n{_HELP_TEXT}"
-                )
+                await update.message.reply_text(f"未知維度：{dim_arg}\n\n{_HELP_TEXT}")
                 return
             dimension_filter = [dim_arg]
 
@@ -137,15 +126,11 @@ async def bench_command(
 
     # Prevent concurrent runs
     if _bench_lock.locked():
-        await update.message.reply_text(
-            "⏳ 已有 benchmark 正在執行中，請稍候。"
-        )
+        await update.message.reply_text("⏳ 已有 benchmark 正在執行中，請稍候。")
         return
 
     # Describe what we're about to run
-    dim_desc = (
-        ", ".join(dimension_filter) if dimension_filter else "全部"
-    )
+    dim_desc = ", ".join(dimension_filter) if dimension_filter else "全部"
     model_desc = ", ".join(model_filter) if model_filter else "全部可用"
     sent = await update.message.reply_text(
         f"🔬 Benchmark 啟動中…\n"
@@ -155,11 +140,7 @@ async def bench_command(
     )
 
     # Run in background so the bot stays responsive
-    asyncio.create_task(
-        _run_bench_background(
-            sent, dimension_filter, model_filter
-        )
-    )
+    asyncio.create_task(_run_bench_background(sent, dimension_filter, model_filter))
 
 
 async def _run_bench_background(
@@ -203,8 +184,6 @@ async def _run_bench_background(
         except Exception as e:
             logger.error("Benchmark failed: %s", e)
             try:
-                await status_msg.edit_text(
-                    f"❌ Benchmark 執行失敗：{e}"
-                )
+                await status_msg.edit_text(f"❌ Benchmark 執行失敗：{e}")
             except Exception:
                 pass
