@@ -73,17 +73,12 @@ async def _post_init(app) -> None:
     model_count = 0
     try:
         data = await gateway.models()
-        model_count = sum(
-            1 for m in data.get("models", []) if m.get("available")
-        )
+        model_count = sum(1 for m in data.get("models", []) if m.get("available"))
     except Exception:
         pass
 
     sha = _git_sha()
-    await send_telegram(
-        f"🟢 Echeneis Bot 啟動 (`{sha}`)\n"
-        f"模型：{model_count} 個可用"
-    )
+    await send_telegram(f"🟢 Echeneis Bot 啟動 (`{sha}`)\n模型：{model_count} 個可用")
 
     # Start background system monitor
     monitor.start()

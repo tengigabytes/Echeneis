@@ -40,6 +40,7 @@ _HOST_PROC = "/host/proc"
 # VM Resource Helpers
 # ---------------------------------------------------------------------------
 
+
 def _get_host_proc() -> str | None:
     """Return the host /proc path if available, else None."""
     if os.path.isdir(_HOST_PROC):
@@ -146,12 +147,14 @@ async def get_quota_status(gateway: GatewayClient) -> list[dict[str, Any]]:
             continue
         used_rpd = usage.get("used_rpd", 0)
         pct = (used_rpd / limit_rpd * 100) if limit_rpd else 0
-        quotas.append({
-            "model": m["name"],
-            "used_rpd": used_rpd,
-            "limit_rpd": limit_rpd,
-            "pct": round(pct, 1),
-        })
+        quotas.append(
+            {
+                "model": m["name"],
+                "used_rpd": used_rpd,
+                "limit_rpd": limit_rpd,
+                "pct": round(pct, 1),
+            }
+        )
     return quotas
 
 
@@ -172,6 +175,7 @@ async def get_gateway_latency(gateway: GatewayClient) -> float | None:
 # ---------------------------------------------------------------------------
 # Background Monitor
 # ---------------------------------------------------------------------------
+
 
 class SystemMonitor:
     """Periodic background monitor that sends proactive alerts."""

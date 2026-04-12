@@ -84,9 +84,7 @@ def _format_progress(info, dimension_names: list[str]) -> str:
         if name == current:
             if info.models_done_in_dimension >= info.models_in_dimension:
                 # Just finished last model — show as done
-                lines.append(
-                    f"✅ {name} — {info.models_in_dimension} 模型"
-                )
+                lines.append(f"✅ {name} — {info.models_in_dimension} 模型")
                 done_dims.add(name)
             elif info.models_done_in_dimension > 0:
                 lines.append(

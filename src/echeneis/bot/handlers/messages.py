@@ -267,9 +267,7 @@ def _format_reply(result: dict, elapsed: float | None = None) -> str:
     return f"{header}\n\n{content}"
 
 
-async def _send_reply(
-    sent_msg: Any, text: str, parse_mode: str | None = None
-) -> None:
+async def _send_reply(sent_msg: Any, text: str, parse_mode: str | None = None) -> None:
     """Send reply, splitting into multiple messages if over Telegram limit.
 
     Args:
