@@ -73,6 +73,7 @@ nano .env  # Add your API keys
 | `GEMINI_API_KEY` | Google Gemini API key |
 | `TELEGRAM_BOT_TOKEN` | Telegram bot token |
 | `TELEGRAM_ALLOWED_USERS` | Comma-separated Telegram user IDs |
+| `TELEGRAM_ADMIN_CHAT_ID` | (Optional) Separate chat for system alerts |
 
 Not all keys are required. The gateway adapts to whichever providers
 have valid keys configured.
@@ -126,7 +127,44 @@ sudo docker compose -f /opt/echeneis/docker-compose.yml logs -f
 
 ## 7. Monitoring
 
-### Option A: Cloudflare Health Checks (recommended)
+### Built-in Telegram Monitoring
+
+The bot includes a background system monitor and on-demand dashboard.
+
+**Proactive alerts** are sent automatically to the admin chat
+(or the first allowed user if `TELEGRAM_ADMIN_CHAT_ID` is not set):
+
+| Alert | Trigger |
+|-------|---------|
+| 🟢 Bot startup | Container starts and gateway is healthy |
+| 🔴 CPU / RAM / Disk | CPU > 80%, RAM > 90%, or Disk > 85% |
+| 💀 Quota exhaustion | Any model's RPD usage ≥ 90% |
+| ⚠️ Circuit breaker | Provider fails 3× consecutively (and recovery) |
+
+Alerts have a 1-hour cooldown per category to prevent flooding.
+
+**On-demand dashboard** — send `/status` in Telegram:
+
+```
+🖥 VM 狀態
+🟢 CPU  ████░░░░░░ 12.3%  (load 0.49, 4 cores)
+🟢 RAM  ███░░░░░░░  8.2/24 GB
+🟢 Disk ██░░░░░░░░   45/200 GB
+
+🌐 Gateway
+✅ gemma-4-31b
+✅ groq-llama-70b
+
+📊 配額
+🟢 groq-llama-70b     120/1000  (12%)
+🟢 gemma-4-31b         45/1500  (3%)
+
+⏱ 運行 3d 14h 22m
+```
+
+### External Uptime Checks (optional)
+
+#### Cloudflare Health Checks
 
 1. Cloudflare Dashboard > your domain > **Health Checks**
 2. Create check:
@@ -134,7 +172,7 @@ sudo docker compose -f /opt/echeneis/docker-compose.yml logs -f
    - Interval: 60 seconds
    - Notification: email or webhook
 
-### Option B: UptimeRobot (free tier)
+#### UptimeRobot (free tier)
 
 1. Create account at [UptimeRobot](https://uptimerobot.com/)
 2. Add HTTP(S) monitor for your tunnel URL's `/health` endpoint
@@ -201,7 +239,8 @@ rate limit stress). Results are saved to `benchmarks/results/results.jsonl`.
 /bench all groq-llama-70b           # all dimensions, one model
 ```
 
-Results are pushed back to the chat when complete.
+Progress is reported in real-time during the run, and the final report
+is pushed when complete.
 
 ### From the server
 

@@ -13,8 +13,9 @@ A self-hosted AI gateway that unifies multiple LLM providers into a single OpenA
 - **Auto failover** — per-provider rate limit tracking with automatic fallback within tiers
 - **Rate limit management** — tracks quotas across all providers, prevents wasted requests
 - **Telegram Bot** — multi-turn conversation (reply to continue), vision, translation, and document processing
+- **System monitoring** — `/status` dashboard, proactive alerts for VM resources, quota exhaustion, and circuit breaker events
 - **MCP Server** — tool call entry point for Claude Code and other AI agents
-- **Benchmark suite** — automated 7-dimension evaluation across all providers, runnable via CLI or Telegram `/bench`
+- **Benchmark suite** — automated 7-dimension evaluation across all providers, with real-time Telegram progress updates
 - **Graceful auto-deploy** — defers service restart when long-running tasks (benchmarks, etc.) are active
 
 ## Architecture
@@ -169,7 +170,7 @@ pytest benchmarks/ -k "groq"                             # filter by model name
 /bench all groq-llama-70b           # all dimensions, one model
 ```
 
-Results are pushed back to the chat when complete and saved to `benchmarks/results/results.jsonl` for historical comparison.
+Progress is reported in real-time during the run, and the final report is pushed when complete. Results are saved to `benchmarks/results/results.jsonl` for historical comparison.
 
 ### Dimensions
 
@@ -184,6 +185,40 @@ Results are pushed back to the chat when complete and saved to `benchmarks/resul
 | 7 | `rate_limit` | Success rate under 5× concurrency | 50 (shared) |
 
 A full run across all models uses approximately 308 requests.
+
+## Telegram Bot
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `/start` | Welcome message |
+| `/help` | Show all available commands |
+| `/think <msg>` | Deep reasoning mode (Tier S) |
+| `/fast <msg>` | Quick batch mode (Tier B) |
+| `/models` | List available models with quota |
+| `/use <model> <msg>` | Route to a specific model |
+| `/model` | Show current routing and health status |
+| `/status` | System dashboard — VM resources, gateway health, quota |
+| `/bench` | Run benchmark suite |
+
+Send text directly for general conversation (Tier A), photos for vision analysis, or files for document processing. Reply to a bot message to continue multi-turn conversation (up to 6 turns).
+
+### Monitoring and Alerts
+
+The bot includes a background system monitor that sends proactive alerts to the admin chat:
+
+| Alert | Trigger | Cooldown |
+|-------|---------|----------|
+| 🟢 Bot startup | Container start | — |
+| 🔴 CPU high | Load > 80% sustained | 1 hour |
+| 🔴 Memory low | RAM usage > 90% | 1 hour |
+| 🔴 Disk low | Disk usage > 85% | 1 hour |
+| 💀 Quota exhaustion | RPD usage ≥ 90% per model | 1 hour |
+| ⚠️ Circuit breaker open | 3 consecutive provider failures | On event |
+| ✅ Circuit breaker close | Provider recovered | On event |
+
+Use `/status` to query all metrics on demand. Set `TELEGRAM_ADMIN_CHAT_ID` to route alerts to a separate admin chat.
 
 ## Baseline Results (2026-04-11)
 
