@@ -9,9 +9,10 @@ from base64 import b64encode
 from io import BytesIO
 from typing import Any
 
-from telegram import Document, PhotoSize, Update
+from telegram import Document, Message, PhotoSize, Update
 from telegram.ext import ContextTypes
 
+from echeneis.bot.conversation import ConversationStore
 from echeneis.bot.gateway_client import GatewayClient, GatewayError
 from echeneis.bot.middleware import is_authorized
 
@@ -70,15 +71,29 @@ async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     gateway: GatewayClient = context.bot_data["gateway"]
+    convo: ConversationStore = context.bot_data["conversation"]
+    parent_id = _get_reply_parent_id(update.message)
+
+    # Store user message and build history chain
+    convo.store_user(update.message.message_id, text, parent_id=parent_id)
+    messages = convo.build_messages(update.message.message_id)
+
     sent = await update.message.reply_text("處理中…")
 
     try:
         started = time.perf_counter()
         result = await gateway.chat(
-            messages=[{"role": "user", "content": text}],
+            messages=messages,
             max_tokens=_DEFAULT_MAX_TOKENS,
         )
         elapsed = time.perf_counter() - started
+
+        # Store assistant reply for future chain lookups
+        assistant_text = result["choices"][0]["message"]["content"]
+        convo.store_assistant(
+            sent.message_id, assistant_text, parent_id=update.message.message_id
+        )
+
         reply = _format_reply(result, elapsed)
         await _send_reply(sent, reply)
     except GatewayError as e:
@@ -96,6 +111,9 @@ async def photo_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     caption = update.message.caption or "請描述這張圖片。"
 
     gateway: GatewayClient = context.bot_data["gateway"]
+    convo: ConversationStore = context.bot_data["conversation"]
+    parent_id = _get_reply_parent_id(update.message)
+
     sent = await update.message.reply_text("分析圖片中…")
 
     try:
@@ -105,16 +123,27 @@ async def photo_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         image_b64 = b64encode(buf.getvalue()).decode("ascii")
         data_url = f"data:image/jpeg;base64,{image_b64}"
 
-        content = [
+        content: list[dict[str, Any]] = [
             {"type": "text", "text": caption},
             {"type": "image_url", "image_url": {"url": data_url}},
         ]
+
+        # Store user message (vision content) and build history chain
+        convo.store_user(update.message.message_id, content, parent_id=parent_id)
+        messages = convo.build_messages(update.message.message_id)
+
         started = time.perf_counter()
         result = await gateway.chat(
-            messages=[{"role": "user", "content": content}],
+            messages=messages,
             max_tokens=_DEFAULT_MAX_TOKENS,
         )
         elapsed = time.perf_counter() - started
+
+        assistant_text = result["choices"][0]["message"]["content"]
+        convo.store_assistant(
+            sent.message_id, assistant_text, parent_id=update.message.message_id
+        )
+
         reply = _format_reply(result, elapsed)
         await _send_reply(sent, reply)
     except GatewayError as e:
@@ -150,6 +179,9 @@ async def document_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return
 
     gateway: GatewayClient = context.bot_data["gateway"]
+    convo: ConversationStore = context.bot_data["conversation"]
+    parent_id = _get_reply_parent_id(update.message)
+
     sent = await update.message.reply_text("讀取檔案中…")
 
     try:
@@ -164,12 +196,21 @@ async def document_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         else:
             prompt += "\n\n請分析這個檔案。"
 
+        convo.store_user(update.message.message_id, prompt, parent_id=parent_id)
+        messages = convo.build_messages(update.message.message_id)
+
         started = time.perf_counter()
         result = await gateway.chat(
-            messages=[{"role": "user", "content": prompt}],
+            messages=messages,
             max_tokens=_DEFAULT_MAX_TOKENS,
         )
         elapsed = time.perf_counter() - started
+
+        assistant_text = result["choices"][0]["message"]["content"]
+        convo.store_assistant(
+            sent.message_id, assistant_text, parent_id=update.message.message_id
+        )
+
         reply = _format_reply(result, elapsed)
         await _send_reply(sent, reply)
     except GatewayError as e:
@@ -235,6 +276,14 @@ def _split_text(text: str, limit: int = _TG_MSG_LIMIT) -> list[str]:
         chunks.append(text[:cut])
         text = text[cut:].lstrip("\n")
     return chunks
+
+
+def _get_reply_parent_id(message: Message) -> int | None:
+    """Extract the message_id of the bot reply being replied to, if any."""
+    reply = message.reply_to_message
+    if reply is None:
+        return None
+    return reply.message_id
 
 
 def _get_extension(filename: str) -> str:

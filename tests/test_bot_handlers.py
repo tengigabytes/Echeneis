@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from echeneis.bot.conversation import ConversationStore
 from echeneis.bot.handlers.commands import (
     fast_command,
     help_command,
@@ -15,20 +16,37 @@ from echeneis.bot.handlers.messages import text_message
 
 
 def _make_context(gateway_mock: AsyncMock) -> MagicMock:
-    """Create a mock context with gateway in bot_data."""
+    """Create a mock context with gateway and conversation store in bot_data."""
     ctx = MagicMock()
-    ctx.bot_data = {"gateway": gateway_mock}
+    ctx.bot_data = {
+        "gateway": gateway_mock,
+        "conversation": ConversationStore(),
+    }
     ctx.args = []
     return ctx
 
 
-def _make_authorized_update(text: str = "") -> MagicMock:
+def _make_authorized_update(
+    text: str = "",
+    message_id: int = 1,
+    reply_to_message_id: int | None = None,
+) -> MagicMock:
     """Create a mock authorized update with a text message."""
     update = MagicMock()
     update.effective_user.id = 12345
     update.message.text = text
     update.message.caption = None
-    update.message.reply_text = AsyncMock(return_value=MagicMock(edit_text=AsyncMock()))
+    update.message.message_id = message_id
+    sent_msg = MagicMock()
+    sent_msg.message_id = message_id + 1
+    sent_msg.edit_text = AsyncMock()
+    sent_msg.chat = MagicMock()
+    update.message.reply_text = AsyncMock(return_value=sent_msg)
+    if reply_to_message_id is not None:
+        update.message.reply_to_message = MagicMock()
+        update.message.reply_to_message.message_id = reply_to_message_id
+    else:
+        update.message.reply_to_message = None
     return update
 
 

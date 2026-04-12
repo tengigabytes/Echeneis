@@ -47,7 +47,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "/model — 查看目前路由狀態\n\n"
         "直接傳送文字 → 一般對話（A 級）\n"
         "傳送圖片 → 視覺分析（A 級）\n"
-        "傳送檔案 → 自動處理"
+        "傳送檔案 → 自動處理\n\n"
+        "💬 回覆 Bot 的訊息可延續對話（最多 6 輪）\n"
+        "直接發新訊息則開啟全新對話"
     )
 
 
