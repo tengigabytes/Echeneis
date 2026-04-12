@@ -165,6 +165,34 @@ cat /etc/cron.d/echeneis-anti-eviction
 journalctl -t anti-eviction --since "8 hours ago"
 ```
 
+## 10. Running Benchmarks
+
+The benchmark suite tests all configured models across 7 dimensions
+(latency, context recall, vision, code review, translation, multi-turn,
+rate limit stress). Results are saved to `benchmarks/results/results.jsonl`.
+
+### From Telegram
+
+```
+/bench                              # all dimensions × all models
+/bench latency                      # single dimension
+/bench latency groq-llama-70b       # specific dimension + model
+/bench all groq-llama-70b           # all dimensions, one model
+```
+
+Results are pushed back to the chat when complete.
+
+### From the server
+
+```bash
+cd /opt/echeneis
+PYTHONPATH=. python -m benchmarks run                             # all
+PYTHONPATH=. python -m benchmarks run --dimension latency         # single
+PYTHONPATH=. python -m benchmarks results --compare-last 2        # compare runs
+```
+
+A full run uses approximately 308 API requests across all providers.
+
 ## Troubleshooting
 
 ### Service won't start
