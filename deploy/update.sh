@@ -22,8 +22,9 @@ if [[ -n "${repo_owner}" && "${repo_owner}" != ":" ]]; then
     chown -R "${repo_owner}" "${INSTALL_DIR}" 2>/dev/null || true
 fi
 
-info "Rebuilding Docker images"
-docker compose build
+GIT_SHA=$(git rev-parse --short HEAD)
+info "Rebuilding Docker images (${GIT_SHA})"
+GIT_SHA="${GIT_SHA}" docker compose build --build-arg GIT_SHA="${GIT_SHA}"
 
 info "Restarting service"
 systemctl restart echeneis

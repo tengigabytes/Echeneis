@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import subprocess
 import time
 from dataclasses import asdict, dataclass
@@ -39,7 +40,14 @@ class BenchmarkResult:
 
 
 def _git_sha() -> str:
-    """Get current git commit SHA (short)."""
+    """Get current git commit SHA (short).
+
+    Falls back to the GIT_SHA environment variable (set at Docker build
+    time) when running inside a container without a .git directory.
+    """
+    env_sha = os.environ.get("GIT_SHA", "").strip()
+    if env_sha:
+        return env_sha[:7]
     try:
         result = subprocess.run(
             ["git", "rev-parse", "--short", "HEAD"],

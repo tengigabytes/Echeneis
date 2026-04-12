@@ -10,6 +10,8 @@ RUN pip install --no-cache-dir .
 COPY config/ config/
 COPY benchmarks/ benchmarks/
 
+ARG GIT_SHA=unknown
+ENV GIT_SHA=${GIT_SHA}
 ENV PYTHONPATH=/app
 
 EXPOSE 4000
