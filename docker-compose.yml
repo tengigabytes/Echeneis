@@ -5,10 +5,12 @@ services:
       - "4000:4000"
     volumes:
       - ./config:/app/config
+      - /var/lib/echeneis/state:/app/state
     env_file:
       - .env
     environment:
       - ECHENEIS_CONFIG_DIR=/app/config
+      - ECHENEIS_STATE_DIR=/app/state
     restart: unless-stopped
     logging:
       driver: json-file
