@@ -156,6 +156,10 @@ class BenchmarkHarness:
     ) -> dict[str, Any]:
         """Send a chat request with per-provider throttling.
 
+        The throttle wait happens *before* the request, so the caller's
+        timer around this method includes both the wait and the API call.
+        Use :meth:`timed_chat` when you need to measure pure API latency.
+
         Args:
             model: Short model name.
             messages: OpenAI-format messages.
@@ -168,6 +172,33 @@ class BenchmarkHarness:
         await self._throttle.wait(provider)
         assert self._client is not None
         return await self._client.chat(messages, model=model, **kwargs)
+
+    async def timed_chat(
+        self,
+        model: str,
+        messages: list[dict[str, Any]],
+        **kwargs: Any,
+    ) -> tuple[dict[str, Any], float]:
+        """Send a throttled request and return pure API latency.
+
+        Waits for the provider throttle, then measures only the HTTP
+        round-trip — the returned duration excludes throttle wait time.
+
+        Args:
+            model: Short model name.
+            messages: OpenAI-format messages.
+            **kwargs: Extra params for the gateway.
+
+        Returns:
+            Tuple of (response dict, latency in milliseconds).
+        """
+        provider = self._model_providers.get(model, "unknown")
+        await self._throttle.wait(provider)
+        assert self._client is not None
+        t0 = time.perf_counter()
+        resp = await self._client.chat(messages, model=model, **kwargs)
+        latency_ms = (time.perf_counter() - t0) * 1000
+        return resp, latency_ms
 
     def make_result(
         self,

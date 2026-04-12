@@ -7,7 +7,6 @@ Reports p50 and p95 latency in milliseconds.
 from __future__ import annotations
 
 import statistics
-import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -36,15 +35,11 @@ class LatencyBenchmark:
         messages = [{"role": "user", "content": PROMPT}]
         latencies: list[float] = []
 
-        t_start = time.perf_counter()
+        for _ in range(NUM_REQUESTS):
+            _, latency_ms = await harness.timed_chat(model, messages, max_tokens=50)
+            latencies.append(latency_ms)
 
-        for i in range(NUM_REQUESTS):
-            req_start = time.perf_counter()
-            await harness.throttled_chat(model, messages, max_tokens=50)
-            req_end = time.perf_counter()
-            latencies.append((req_end - req_start) * 1000)
-
-        total_ms = (time.perf_counter() - t_start) * 1000
+        total_ms = sum(latencies)
 
         p50 = statistics.median(latencies)
         p95 = (
