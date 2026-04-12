@@ -283,7 +283,7 @@ Comparative evaluation across Echeneis model pool, Claude Sonnet 4.6, and Claude
 
 ### 7. Multi-turn Conversation (4 turns, context retention)
 
-All 10 Echeneis models + Sonnet + Opus achieved **complete** recall (name, project, SF, full summary) when pinned to a single model. Auto-routing caused partial summary due to mid-conversation model switching.
+All 10 Echeneis models + Sonnet + Opus achieved **complete** recall (name, project, SF, full summary). Session sticky ensures the same model is used throughout a reply chain, preventing mid-conversation model switching.
 
 | Model | Summary Quality |
 |-------|:---------------:|
@@ -298,7 +298,7 @@ All 10 Echeneis models + Sonnet + Opus achieved **complete** recall (name, proje
 | or-nemotron-120b | Complete |
 | Sonnet 4.6 | Complete |
 | Opus 4.6 | Complete |
-| Echeneis (auto-routed) | Partial — model switched mid-conversation |
+| Echeneis (auto-routed) | Complete — session sticky keeps model consistent across turns |
 
 ### Overall Rankings
 
