@@ -14,6 +14,7 @@ A self-hosted AI gateway that unifies multiple LLM providers into a single OpenA
 - **Rate limit management** — tracks quotas across all providers, prevents wasted requests
 - **Telegram Bot** — multi-turn conversation (reply to continue), vision, translation, and document processing
 - **MCP Server** — tool call entry point for Claude Code and other AI agents
+- **Benchmark suite** — automated 7-dimension evaluation across all providers, runnable via CLI or Telegram `/bench`
 
 ## Architecture
 
@@ -22,6 +23,7 @@ graph TD
     subgraph Clients
         TB[Telegram Bot]
         MCP[MCP Server]
+        BM[Benchmark Suite]
     end
 
     subgraph Gateway
@@ -46,6 +48,7 @@ graph TD
 
     TB --> TC
     MCP --> TC
+    BM --> TC
 
     TC --> TS
     TC --> TA
@@ -126,12 +129,62 @@ Echeneis/
 │   ├── gateway/               # Core routing and health checks
 │   ├── bot/                   # Telegram bot
 │   └── mcp/                   # MCP server for agent integration
+├── benchmarks/
+│   ├── dimensions/            # 7 benchmark dimensions
+│   ├── fixtures/              # Test data (datasheet, C code, images)
+│   └── results/               # JSONL output (gitignored)
 ├── tests/
 ├── docs/
 └── docker-compose.yml
 ```
 
-## Benchmark (2026-04-11)
+## Benchmark Suite
+
+Automated 7-dimension evaluation of all configured models against the live gateway. Measures latency, long-context recall, vision, code review, translation consistency, rate-limit resilience, and multi-turn context retention.
+
+### Running Benchmarks
+
+```bash
+# Via CLI (gateway must be running)
+python -m benchmarks run                                 # all dimensions, all models
+python -m benchmarks run --dimension latency             # single dimension
+python -m benchmarks run --dimension code_review --model gemma-4-31b
+
+# View results
+python -m benchmarks results                             # latest run
+python -m benchmarks results --compare-last 2            # regression detection
+
+# Via pytest
+pytest benchmarks/ -m latency                            # single dimension
+pytest benchmarks/ -k "groq"                             # filter by model name
+```
+
+### Running from Telegram
+
+```
+/bench                              # all dimensions × all models
+/bench latency                      # single dimension
+/bench latency groq-llama-70b       # specific dimension + model
+/bench all groq-llama-70b           # all dimensions, one model
+```
+
+Results are pushed back to the chat when complete and saved to `benchmarks/results/results.jsonl` for historical comparison.
+
+### Dimensions
+
+| # | Dimension | Metric | Per-model Requests |
+|---|-----------|--------|--------------------|
+| 1 | `latency` | p50, p95 (ms) | 10 |
+| 2 | `context_recall` | Questions correct out of 5 | 5 |
+| 3 | `vision` | Register values extracted out of 3 | 1 |
+| 4 | `code_review` | Planted bugs found out of 6 | 1 |
+| 5 | `translation` | Technical terms preserved out of 6 | 1 |
+| 6 | `multi_turn` | Context markers retained out of 4 | 4 |
+| 7 | `rate_limit` | Success rate under 5× concurrency | 50 (shared) |
+
+A full run across all models uses approximately 308 requests.
+
+## Baseline Results (2026-04-11)
 
 Comparative evaluation across Echeneis model pool, Claude Sonnet 4.6, and Claude Opus 4.6 on seven dimensions.
 

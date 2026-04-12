@@ -17,6 +17,7 @@ from telegram.ext import (
 
 from echeneis.bot.conversation import ConversationStore
 from echeneis.bot.gateway_client import GatewayClient
+from echeneis.bot.handlers.bench import bench_command
 from echeneis.bot.handlers.commands import (
     fast_command,
     help_command,
@@ -67,6 +68,7 @@ def main() -> None:
     app.add_handler(CommandHandler("models", models_command))
     app.add_handler(CommandHandler("use", use_command))
     app.add_handler(CommandHandler("model", model_command))
+    app.add_handler(CommandHandler("bench", bench_command))
 
     # Register message handlers (order matters — more specific first)
     app.add_handler(MessageHandler(filters.PHOTO, photo_message))

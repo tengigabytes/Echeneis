@@ -1,0 +1,136 @@
+SX1276/77/78/79 - 137 MHz to 1020 MHz Long Range Low Power Transceiver
+
+GENERAL DESCRIPTION
+The SX1276/77/78/79 transceivers feature the LoRa long range modem that provides
+ultra-long range spread spectrum communication and high interference immunity whilst
+minimising current consumption.
+
+Using Semtech's patented LoRa modulation technique SX1276/77/78/79 can achieve a
+sensitivity of over -148 dBm using a low cost crystal and bill of materials. The high
+sensitivity combined with the integrated +20 dBm power amplifier yields industry leading
+link budget making it optimal for any application requiring range or robustness.
+
+KEY FEATURES
+- LoRa Modem: 168 dB maximum link budget
+- +20 dBm - 100 mW constant RF output vs. V supply
+- +14 dBm high efficiency PA
+- Programmable bit rate up to 300 kbps
+- High sensitivity: down to -148 dBm
+- Bullet-proof front end: IIP3 = -12.5 dBm
+- Excellent blocking immunity
+- Low RX current of 10.3 mA, 200 nA register retention
+- Fully integrated synthesizer with a resolution of 61 Hz
+- FSK, GFSK, MSK, GMSK, LoRa and OOK modulation
+- Built-in bit synchronizer for clock recovery
+- Preamble detection
+- 127 dB Dynamic Range RSSI
+- Automatic RF Sense and CAD with ultra-fast AFC
+- Packet engine up to 256 bytes with CRC
+- Built-in temperature sensor and low battery indicator
+
+OPERATING MODES
+The SX1276 has several operating modes:
+
+1. SLEEP mode: Lowest current consumption (0.2 uA). All register values are retained.
+   Oscillator is turned off. No SPI communication possible except to change mode.
+
+2. STANDBY mode: Both crystal oscillator and LoRa baseband blocks are turned on.
+   RF part and PLLs are disabled. Current consumption is approximately 1.5 mA.
+
+3. FREQUENCY SYNTHESIS TX (FSTX): The PLL is locked to the transmit frequency.
+   Used as an intermediate step before TX mode.
+
+4. TRANSMIT (TX) mode: When activated the SX1276 powers all remaining blocks required
+   for transmit. The PA ramps up and begins transmission. Upon completion the device
+   returns to Standby mode.
+
+5. FREQUENCY SYNTHESIS RX (FSRX): The PLL is locked to the receive frequency.
+   Used as an intermediate step before RX mode.
+
+6. RECEIVE CONTINUOUS (RXCONTINUOUS): The device continuously receives packets.
+   After each packet reception, the device restarts listening. Current consumption
+   is approximately 10.3 mA.
+
+7. RECEIVE SINGLE (RXSINGLE): The device listens for a single packet then returns
+   to Standby. Useful for reducing power consumption in polling applications.
+
+8. CAD (Channel Activity Detection): Performs a channel activity detection cycle.
+   Returns to Standby when finished. Duration depends on Spreading Factor.
+
+REGISTER MAP (Selected)
+Address | Register        | Default | Description
+0x00    | RegFifo         | 0x00    | FIFO data input/output
+0x01    | RegOpMode       | 0x09    | Operating mode & LoRa/FSK selection
+0x06    | RegFrMsb        | 0x6C    | RF carrier frequency MSB
+0x07    | RegFrMid        | 0x80    | RF carrier frequency MID
+0x08    | RegFrLsb        | 0x00    | RF carrier frequency LSB
+0x09    | RegPaConfig     | 0x4F    | PA selection and output power control
+0x0B    | RegOcp          | 0x2B    | Over current protection control
+0x0C    | RegLna          | 0x20    | LNA settings
+0x0D    | RegFifoAddrPtr  | 0x00    | FIFO SPI pointer
+0x0E    | RegFifoTxBase   | 0x80    | Start address of TX FIFO
+0x0F    | RegFifoRxBase   | 0x00    | Start address of RX FIFO
+0x10    | RegFifoRxCurr   | 0x00    | Start address of last packet received
+0x12    | RegIrqFlags     | 0x00    | IRQ flags
+0x13    | RegRxNbBytes    | 0x00    | Number of payload bytes of last packet
+0x1D    | RegModemConfig1 | 0x72    | Modem config: BW, Coding Rate, Implicit Header
+0x1E    | RegModemConfig2 | 0x70    | Modem config: SF, TX CRC, RX timeout MSB
+0x26    | RegModemConfig3 | 0x00    | Modem config: Low data rate optimize, AGC auto
+
+LORA MODULATION
+Spreading Factor (SF): The LoRa modem operates with spreading factors from SF7 to SF12.
+A higher spreading factor increases the signal-to-noise ratio (SNR) and therefore the
+range, but also increases the time-on-air. Each increment in SF doubles the time-on-air.
+
+SF7:  -7.5 dB SNR, highest data rate
+SF8:  -10 dB SNR
+SF9:  -12.5 dB SNR
+SF10: -15 dB SNR
+SF11: -17.5 dB SNR
+SF12: -20 dB SNR, longest range, lowest data rate
+
+Bandwidth (BW): Supported bandwidths are 7.8, 10.4, 15.6, 20.8, 31.25, 41.7,
+62.5, 125, 250, and 500 kHz. Wider bandwidth gives higher data rate but lower
+sensitivity.
+
+Coding Rate (CR): Forward error correction coding rates of 4/5, 4/6, 4/7, and 4/8
+are available. Higher coding rates give better interference immunity at the expense
+of increased time-on-air.
+
+PA CONFIGURATION
+RegPaConfig (0x09):
+- Bit 7: PaSelect — selects PA output pin
+  0: RFO pin, output power limited to +14 dBm
+  1: PA_BOOST pin, output power up to +20 dBm
+- Bits 6-4: MaxPower — selects Pmax according to formula:
+  Pmax = 10.8 + 0.6 * MaxPower [dBm]
+- Bits 3-0: OutputPower
+  If PaSelect = 0: Pout = Pmax - (15 - OutputPower)
+  If PaSelect = 1: Pout = 17 - (15 - OutputPower) [dBm]
+
+PACKET ENGINE
+The SX1276 includes a packet handler that supports:
+- Automatic preamble generation and detection
+- Sync word generation and detection (configurable 1-8 bytes)
+- CRC generation and checking (CRC-16 CCITT)
+- Packet length: Fixed or variable, up to 256 bytes payload
+- FIFO: 256-byte shared FIFO for both TX and RX
+
+DIO MAPPING
+The SX1276 provides 6 configurable DIO pins for interrupt signaling:
+- DIO0: RxDone / TxDone / CadDone (most commonly used)
+- DIO1: RxTimeout / FhssChangeChannel / CadDetected
+- DIO2: FhssChangeChannel
+- DIO3: CadDone / ValidHeader / PayloadCrcError
+- DIO4: CadDetected / PllLock
+- DIO5: ModeReady / ClkOut
+
+ELECTRICAL CHARACTERISTICS (T = 25°C, VDD = 3.3V)
+Parameter               | Min  | Typ  | Max  | Unit
+Supply voltage          | 1.8  | 3.3  | 3.7  | V
+Sleep mode current      | -    | 0.2  | -    | uA
+Standby mode current    | -    | 1.5  | -    | mA
+RX current (LoRa)       | -    | 10.3 | -    | mA
+TX current (+20 dBm)    | -    | 120  | -    | mA
+TX current (+14 dBm)    | -    | 28   | -    | mA
+Operating temperature   | -40  | -    | +85  | °C

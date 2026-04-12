@@ -34,6 +34,7 @@ dev = [
 [project.scripts]
 ech-bot = "echeneis.bot.main:main"
 ech-mcp = "echeneis.mcp.delegate:main"
+ech-bench = "benchmarks.cli:main"
 
 [tool.black]
 target-version = ["py311"]
@@ -53,3 +54,13 @@ select = ["E", "F", "I", "N", "W"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+markers = [
+    "benchmark: integration benchmarks against live gateway",
+    "latency: latency measurement benchmark",
+    "context_recall: long context recall benchmark",
+    "vision: vision capability benchmark",
+    "code_review: embedded C code review benchmark",
+    "translation: translation consistency benchmark",
+    "rate_limit: rate limit stress test",
+    "multi_turn: multi-turn conversation benchmark",
+]

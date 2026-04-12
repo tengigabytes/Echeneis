@@ -1,0 +1,74 @@
+# Code review bug detection — 6 planted bugs in sx1276_spi_driver.c.
+# Each bug has a name, description, and keyword patterns for automated scoring.
+# A bug is "found" if ANY of its keywords appear in the review response.
+
+bugs:
+  - name: "FSTEP integer division"
+    description: "FSTEP macro uses integer division, losing precision in frequency calculation"
+    keywords:
+      - "integer division"
+      - "integer truncat"
+      - "precision"
+      - "FSTEP"
+      - "fstep"
+      - "frequency.*precision"
+      - "truncat"
+      - "524288"
+
+  - name: "Frequency calculation error"
+    description: "set_frequency uses truncated FSTEP, accumulating frequency error"
+    keywords:
+      - "frequency.*error"
+      - "frequency.*accumulat"
+      - "freq.*drift"
+      - "freq.*inaccura"
+      - "frf.*wrong"
+      - "set_frequency.*bug"
+
+  - name: "MaxPower bits missing"
+    description: "set_tx_power sets PA_BOOST but leaves MaxPower bits [6:4] as 0"
+    keywords:
+      - "MaxPower"
+      - "maxpower"
+      - "bits.*6.*4"
+      - "\\[6:4\\]"
+      - "0x70"
+      - "PA_CONFIG.*missing"
+      - "output power.*incorrect"
+
+  - name: "uint8_t > 256 dead code"
+    description: "send_packet checks len > 256 but len is uint8_t (max 255)"
+    keywords:
+      - "uint8_t.*256"
+      - "uint8_t.*never"
+      - "dead code"
+      - "always false"
+      - "can't exceed"
+      - "cannot exceed"
+      - "never.*(true|greater|exceed)"
+      - "off.by.one"
+      - "255"
+
+  - name: "TX busy-wait no timeout"
+    description: "send_packet busy-waits for TX_DONE without any timeout"
+    keywords:
+      - "timeout"
+      - "busy.wait"
+      - "infinite.*loop"
+      - "hang"
+      - "block.*forever"
+      - "spin.*forever"
+      - "no.*timeout"
+      - "watchdog"
+
+  - name: "CRC check after read"
+    description: "receive_packet reads FIFO data before checking CRC error flag"
+    keywords:
+      - "CRC.*after"
+      - "CRC.*before"
+      - "CRC.*order"
+      - "CRC.*check.*read"
+      - "CRC.*corrupt"
+      - "read.*before.*CRC"
+      - "check.*CRC.*first"
+      - "corrupted.*data"

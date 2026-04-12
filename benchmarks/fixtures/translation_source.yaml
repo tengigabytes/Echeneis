@@ -1,0 +1,23 @@
+# Translation benchmark — EN paragraph with 6 technical terms to preserve.
+# The model must translate to Traditional Chinese while keeping terms in English.
+
+source_text: |
+  The SX1276 LoRa transceiver uses SPI for register access. During firmware
+  initialization, the watchdog timer must be configured before enabling the
+  interrupt service routine (ISR). The prescaler divides the system clock to
+  generate the desired baud rate. After a system reset, all registers return
+  to their default values. The DMA controller handles bulk data transfers
+  between the FIFO and memory without CPU intervention.
+
+instruction: |
+  Translate the above paragraph to Traditional Chinese (繁體中文).
+  Keep the following technical terms in English — do NOT translate them:
+  SX1276, SPI, firmware, watchdog timer, prescaler, DMA
+
+preserve_terms:
+  - "SX1276"
+  - "SPI"
+  - "firmware"
+  - "watchdog timer"
+  - "prescaler"
+  - "DMA"

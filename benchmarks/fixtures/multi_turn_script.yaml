@@ -1,0 +1,36 @@
+# Multi-turn conversation benchmark — 4 turns testing context retention.
+# The model must remember information from earlier turns.
+
+turns:
+  - role: "user"
+    content: "Hi, my name is Alice and I'm an embedded systems engineer."
+
+  - role: "user"
+    content: "I'm currently working on a project called MokyaLora, which is a LoRa handheld transceiver."
+
+  - role: "user"
+    content: "I'm based in San Francisco and I use the SX1276 chip in my design."
+
+  - role: "user"
+    content: "Can you summarize what you know about me so far? Include my name, project, location, and the chip I use."
+
+# Expected markers in the final (Turn 4) response.
+# All markers must appear for a perfect score.
+expected_markers:
+  - name: "name"
+    patterns:
+      - "Alice"
+
+  - name: "project"
+    patterns:
+      - "MokyaLora"
+      - "Mokya"
+
+  - name: "location"
+    patterns:
+      - "San Francisco"
+      - "SF"
+
+  - name: "chip"
+    patterns:
+      - "SX1276"

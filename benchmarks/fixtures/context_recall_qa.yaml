@@ -1,0 +1,25 @@
+# Context recall Q&A — 5 factual questions about the SX1276 datasheet.
+# Each question has multiple acceptable answer fragments (case-insensitive).
+
+questions:
+  - question: "What is the maximum sensitivity of the SX1276 in LoRa mode?"
+    expected:
+      - "-148"
+      - "dBm"
+
+  - question: "What is the default value of RegPaConfig (register 0x09)?"
+    expected:
+      - "0x4F"
+
+  - question: "How many bytes can the SX1276 packet payload hold at maximum?"
+    expected:
+      - "256"
+
+  - question: "What is the current consumption of the SX1276 in Sleep mode?"
+    expected:
+      - "0.2"
+      - "uA"
+
+  - question: "What DIO pin signals RxDone in LoRa mode?"
+    expected:
+      - "DIO0"
