@@ -32,6 +32,7 @@ services:
       - ECHENEIS_STATE_DIR=/app/state
     volumes:
       - /var/lib/echeneis/state:/app/state
+      - /proc:/host/proc:ro
     depends_on:
       gateway:
         condition: service_healthy

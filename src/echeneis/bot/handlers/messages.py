@@ -267,19 +267,27 @@ def _format_reply(result: dict, elapsed: float | None = None) -> str:
     return f"{header}\n\n{content}"
 
 
-async def _send_reply(sent_msg: Any, text: str) -> None:
-    """Send reply, splitting into multiple messages if over Telegram limit."""
+async def _send_reply(
+    sent_msg: Any, text: str, parse_mode: str | None = None
+) -> None:
+    """Send reply, splitting into multiple messages if over Telegram limit.
+
+    Args:
+        sent_msg: The Telegram message to edit/follow up in.
+        text: Message text.
+        parse_mode: Optional Telegram parse mode (e.g. "HTML").
+    """
     if len(text) <= _TG_MSG_LIMIT:
-        await sent_msg.edit_text(text)
+        await sent_msg.edit_text(text, parse_mode=parse_mode)
         return
 
     # First chunk goes into the existing "processing" message
     chunks = _split_text(text)
-    await sent_msg.edit_text(chunks[0])
+    await sent_msg.edit_text(chunks[0], parse_mode=parse_mode)
     # Remaining chunks as new messages in the same chat
     chat = sent_msg.chat
     for chunk in chunks[1:]:
-        await chat.send_message(chunk)
+        await chat.send_message(chunk, parse_mode=parse_mode)
 
 
 def _split_text(text: str, limit: int = _TG_MSG_LIMIT) -> list[str]:

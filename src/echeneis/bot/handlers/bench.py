@@ -4,6 +4,8 @@ Runs benchmark dimensions against the live gateway in the background
 and pushes results back to the Telegram chat.
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 import time
@@ -18,6 +20,9 @@ from echeneis.bot.task_registry import TaskRegistry
 logger = logging.getLogger(__name__)
 
 _task_registry = TaskRegistry()
+
+# Minimum interval (seconds) between Telegram message edits for progress.
+_PROGRESS_THROTTLE_SECS = 8.0
 
 # Simple lock to prevent concurrent benchmark runs.
 _bench_lock = asyncio.Lock()
@@ -46,14 +51,110 @@ _VALID_DIMENSIONS = {
 }
 
 
+def _format_progress(info, dimension_names: list[str]) -> str:
+    """Format a live progress message for Telegram.
+
+    Args:
+        info: ProgressInfo from the harness.
+        dimension_names: Ordered list of all dimension names being run.
+
+    Returns:
+        Formatted progress string.
+    """
+    from benchmarks.harness import ProgressInfo  # type guard only
+
+    assert isinstance(info, ProgressInfo)
+
+    header = (
+        f"🔬 Benchmark 進行中… "
+        f"({info.completed_dimensions}/{info.total_dimensions} 維度)"
+    )
+    lines: list[str] = [header, ""]
+
+    # Track which dimensions are done based on partial results
+    done_dims: set[str] = set()
+    dim_model_counts: dict[str, int] = {}
+    for r in info.partial_results:
+        dim_model_counts[r.dimension] = dim_model_counts.get(r.dimension, 0) + 1
+
+    # The current dimension in progress
+    current = info.current_dimension
+
+    for name in dimension_names:
+        if name == current:
+            if info.models_done_in_dimension >= info.models_in_dimension:
+                # Just finished last model — show as done
+                lines.append(
+                    f"✅ {name} — {info.models_in_dimension} 模型"
+                )
+                done_dims.add(name)
+            elif info.models_done_in_dimension > 0:
+                lines.append(
+                    f"🔄 {name} — {info.current_model} "
+                    f"({info.models_done_in_dimension}/{info.models_in_dimension})"
+                )
+            else:
+                lines.append(f"🔄 {name} — 啟動中…")
+        elif name in dim_model_counts:
+            count = dim_model_counts[name]
+            lines.append(f"✅ {name} — {count} 模型")
+        else:
+            lines.append(f"⏳ {name}")
+
+    return "\n".join(lines)
+
+
+# Short display names for models — keeps <pre> columns compact.
+_SHORT_NAMES: dict[str, str] = {
+    "cerebras-llama-8b": "cb-8b",
+    "groq-llama-70b": "groq-70b",
+    "groq-llama-4-scout": "groq-scout",
+    "mistral-large-3": "mistral-lg",
+    "mistral-small-3.1": "mistral-sm",
+    "or-gemini-flash-lite": "or-flash",
+    "or-nemotron-120b": "or-nemo",
+    "gemma-4-31b": "gemma-31b",
+    "gemma-4-26b": "gemma-26b",
+    "github-gpt-4o": "gh-gpt4o",
+    "gemini-2.5-flash": "gem-flash",
+    "gemini-2.0-flash": "gem-2.0",
+}
+
+# Per-dimension emoji for section headers.
+_DIM_ICONS: dict[str, str] = {
+    "latency": "⚡",
+    "context_recall": "📖",
+    "vision": "👁",
+    "code_review": "🔍",
+    "translation": "🌐",
+    "multi_turn": "💬",
+    "rate_limit": "🔥",
+}
+
+
+def _short(model: str) -> str:
+    """Get short display name for a model."""
+    return _SHORT_NAMES.get(model, model)
+
+
+def _fmt_dur(ms: float) -> str:
+    """Format duration: >=1000ms as seconds, otherwise ms."""
+    if ms >= 1000:
+        return f"{ms / 1000:.1f}s"
+    return f"{ms:.0f}ms"
+
+
 def _format_bench_results(results: list) -> str:
-    """Format benchmark results for Telegram display.
+    """Format benchmark results as HTML for Telegram display.
+
+    Uses ``<pre>`` blocks for monospace alignment and sorts each
+    dimension by performance (score desc, then duration asc).
 
     Args:
         results: List of BenchmarkResult objects.
 
     Returns:
-        Formatted string for Telegram.
+        HTML-formatted string for Telegram.
     """
     if not results:
         return "沒有結果。"
@@ -62,37 +163,82 @@ def _format_bench_results(results: list) -> str:
     for r in results:
         by_dim.setdefault(r.dimension, []).append(r)
 
-    lines: list[str] = []
-    lines.append(f"📊 Benchmark 完成 ({results[0].git_sha})")
-    lines.append("")
+    parts: list[str] = []
+    parts.append(f"📊 <b>Benchmark 完成</b> ({results[0].git_sha})")
 
     for dim_name, dim_results in by_dim.items():
-        lines.append(f"── {dim_name} ──")
-        for r in sorted(dim_results, key=lambda x: x.model):
-            if r.error:
-                lines.append(f"  ✗ {r.model}: 錯誤")
-            elif r.score is not None:
-                # Dimension-specific formatting
-                if dim_name == "latency":
-                    p50 = r.raw.get("p50_ms", 0)
-                    p95 = r.raw.get("p95_ms", 0)
-                    lines.append(f"  {r.model}: p50={p50:.0f}ms p95={p95:.0f}ms")
-                elif dim_name == "rate_limit":
-                    rate = r.raw.get("success_rate", 0)
-                    total_ms = r.raw.get("total_ms", 0)
-                    lines.append(f"  成功率={rate:.0%} 耗時={total_ms:.0f}ms")
-                else:
-                    total = r.raw.get("total", "?")
-                    dur = r.duration_ms
-                    lines.append(f"  {r.model}: {r.score:.0f}/{total} ({dur:.0f}ms)")
-        lines.append("")
+        icon = _DIM_ICONS.get(dim_name, "📋")
+        parts.append(f"\n{icon} <b>{dim_name}</b>")
 
-    # Summary counts
+        if dim_name == "latency":
+            rows = _format_latency(dim_results)
+        elif dim_name == "rate_limit":
+            rows = _format_rate_limit(dim_results)
+        else:
+            rows = _format_score_dim(dim_name, dim_results)
+
+        parts.append("<pre>" + "\n".join(rows) + "</pre>")
+
+    # Summary
     errors = sum(1 for r in results if r.error)
     ok = len(results) - errors
-    lines.append(f"合計：{ok} 成功 / {errors} 錯誤")
+    parts.append(f"合計 {ok} ✓ / {errors} ✗")
 
-    return "\n".join(lines)
+    return "\n".join(parts)
+
+
+def _format_latency(dim_results: list) -> list[str]:
+    """Format latency dimension — sorted by p50 ascending."""
+    valid = [r for r in dim_results if not r.error and r.score is not None]
+    errs = [r for r in dim_results if r.error]
+
+    # Sort by p50 (fastest first)
+    valid.sort(key=lambda r: r.raw.get("p50_ms", 9e9))
+
+    name_w = max((len(_short(r.model)) for r in valid), default=8)
+    rows: list[str] = []
+    for r in valid:
+        p50 = r.raw.get("p50_ms", 0)
+        p95 = r.raw.get("p95_ms", 0)
+        name = _short(r.model).ljust(name_w)
+        rows.append(f"{name} {p50:>6.0f} / {p95:>6.0f}ms")
+    for r in errs:
+        rows.append(f"{_short(r.model).ljust(name_w)} {'✗ 錯誤':>16}")
+    return rows
+
+
+def _format_score_dim(dim_name: str, dim_results: list) -> list[str]:
+    """Format a score-based dimension — sorted by score desc, duration asc."""
+    valid = [r for r in dim_results if not r.error and r.score is not None]
+    errs = [r for r in dim_results if r.error]
+
+    # Sort: highest score first, then fastest
+    valid.sort(key=lambda r: (-r.score, r.duration_ms))
+
+    name_w = max((len(_short(r.model)) for r in valid), default=8)
+    rows: list[str] = []
+    for r in valid:
+        total = r.raw.get("total", "?")
+        name = _short(r.model).ljust(name_w)
+        score_str = f"{r.score:.0f}/{total}"
+        dur = _fmt_dur(r.duration_ms)
+        rows.append(f"{name} {score_str:>5}  {dur:>6}")
+    for r in errs:
+        rows.append(f"{_short(r.model).ljust(name_w)} {'✗ 錯誤':>13}")
+    return rows
+
+
+def _format_rate_limit(dim_results: list) -> list[str]:
+    """Format rate_limit dimension — single-entry summary."""
+    rows: list[str] = []
+    for r in dim_results:
+        if r.error:
+            rows.append(f"✗ 錯誤: {r.error}")
+        else:
+            rate = r.raw.get("success_rate", 0)
+            total_ms = r.raw.get("total_ms", 0)
+            rows.append(f"成功率 {rate:.0%}  耗時 {_fmt_dur(total_ms)}")
+    return rows
 
 
 async def bench_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -161,12 +307,37 @@ async def _run_bench_background(
     try:
         # Lazy import to avoid circular deps and keep bot startup fast.
         # Must be inside try so ImportError is caught and reported.
+        from benchmarks.dimensions import registry
         from benchmarks.harness import BenchmarkHarness
         from benchmarks.results import ResultStore
 
         dim_desc = ", ".join(dimensions) if dimensions else "all"
         model_desc = ", ".join(models) if models else "all"
         detail = f"dimensions={dim_desc} models={model_desc}"
+
+        # Determine ordered dimension names for progress display
+        if dimensions:
+            dim_names = [
+                d.name for d in registry.ALL_DIMENSIONS if d.name in dimensions
+            ]
+        else:
+            dim_names = [d.name for d in registry.ALL_DIMENSIONS]
+
+        # Throttled progress callback — edits Telegram message at most
+        # once per _PROGRESS_THROTTLE_SECS to avoid rate limits.
+        last_edit = 0.0
+
+        async def _on_progress(info) -> None:
+            nonlocal last_edit
+            now = time.monotonic()
+            if now - last_edit < _PROGRESS_THROTTLE_SECS:
+                return
+            last_edit = now
+            text = _format_progress(info, dim_names)
+            try:
+                await status_msg.edit_text(text)
+            except Exception:
+                logger.debug("Progress edit failed", exc_info=True)
 
         async with _bench_lock:
             async with _task_registry.track("benchmark", max_minutes=30, detail=detail):
@@ -175,6 +346,7 @@ async def _run_bench_background(
                 harness = BenchmarkHarness(
                     models=models,
                     dimensions=dimensions,
+                    on_progress=_on_progress,
                 )
                 results = await harness.run()
 
@@ -184,11 +356,11 @@ async def _run_bench_background(
                 store = ResultStore()
                 store.save(results)
 
-                # Format and send
+                # Format and send final report (HTML for monospace alignment)
                 report = _format_bench_results(results)
                 report += f"\n\n⏱ 總耗時：{elapsed:.1f}s"
 
-                await _send_reply(status_msg, report)
+                await _send_reply(status_msg, report, parse_mode="HTML")
 
     except Exception as e:
         logger.error("Benchmark failed: %s", e, exc_info=True)
