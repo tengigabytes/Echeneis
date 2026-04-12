@@ -33,9 +33,7 @@ class MultiTurnBenchmark:
     name: str = "multi_turn"
     requires_vision: bool = False
 
-    async def run(
-        self, harness: BenchmarkHarness, model: str
-    ) -> BenchmarkResult:
+    async def run(self, harness: BenchmarkHarness, model: str) -> BenchmarkResult:
         """Run multi-turn benchmark for a single model.
 
         Sends turns 1-3 as conversation history, then turn 4 as the

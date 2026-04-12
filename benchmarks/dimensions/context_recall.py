@@ -34,9 +34,7 @@ class ContextRecallBenchmark:
     name: str = "context_recall"
     requires_vision: bool = False
 
-    async def run(
-        self, harness: BenchmarkHarness, model: str
-    ) -> BenchmarkResult:
+    async def run(self, harness: BenchmarkHarness, model: str) -> BenchmarkResult:
         """Run context recall for a single model.
 
         Args:
@@ -61,8 +59,7 @@ class ContextRecallBenchmark:
                     "role": "system",
                     "content": (
                         "You are a technical assistant. Answer questions "
-                        "based on the following datasheet excerpt.\n\n"
-                        + context
+                        "based on the following datasheet excerpt.\n\n" + context
                     ),
                 },
                 {"role": "user", "content": question},
@@ -71,9 +68,7 @@ class ContextRecallBenchmark:
             resp = await harness.throttled_chat(model, messages, max_tokens=200)
             answer = resp["choices"][0]["message"]["content"]
 
-            passed = all(
-                substring_match(answer, frag) for frag in expected
-            )
+            passed = all(substring_match(answer, frag) for frag in expected)
             if passed:
                 correct += 1
 

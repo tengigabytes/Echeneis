@@ -99,8 +99,8 @@ def main() -> None:
     )
     run_parser.add_argument(
         "--gateway-url",
-        default="http://localhost:4000",
-        help="Gateway base URL",
+        default=None,
+        help="Gateway base URL (default: ECHENEIS_GATEWAY_URL or localhost:4000)",
     )
     run_parser.add_argument(
         "--json",

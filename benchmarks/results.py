@@ -135,9 +135,7 @@ def format_comparison(
     }
 
     lines: list[str] = []
-    lines.append(
-        f"Comparison: {current[0].git_sha} vs {previous[0].git_sha}"
-    )
+    lines.append(f"Comparison: {current[0].git_sha} vs {previous[0].git_sha}")
     lines.append("=" * 80)
     lines.append(
         f"{'Dimension':<18} {'Model':<25} {'Current':>8} {'Previous':>8} {'Delta':>8}"

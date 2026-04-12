@@ -38,9 +38,7 @@ class VisionBenchmark:
     name: str = "vision"
     requires_vision: bool = True
 
-    async def run(
-        self, harness: BenchmarkHarness, model: str
-    ) -> BenchmarkResult:
+    async def run(self, harness: BenchmarkHarness, model: str) -> BenchmarkResult:
         """Run vision benchmark for a single model.
 
         Args:

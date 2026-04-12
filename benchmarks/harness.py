@@ -86,14 +86,15 @@ class BenchmarkHarness:
 
     def __init__(
         self,
-        gateway_url: str = "http://localhost:4000",
+        gateway_url: str | None = None,
         models: list[str] | None = None,
         dimensions: list[str] | None = None,
     ) -> None:
         """Initialize the harness.
 
         Args:
-            gateway_url: Base URL of the running gateway.
+            gateway_url: Base URL of the running gateway.  None falls
+                back to ECHENEIS_GATEWAY_URL env var, then localhost:4000.
             models: Model names to benchmark (None = all available).
             dimensions: Dimension names to run (None = all registered).
         """
@@ -112,13 +113,12 @@ class BenchmarkHarness:
         await client.health()
         models_resp = await client.models()
         self._available_models = [
-            m for m in models_resp.get("models", [])
+            m
+            for m in models_resp.get("models", [])
             if m.get("available") and m.get("has_key")
         ]
         for m in self._available_models:
-            self._model_providers[m["name"]] = get_provider(
-                m.get("litellm_model", "")
-            )
+            self._model_providers[m["name"]] = get_provider(m.get("litellm_model", ""))
         return client
 
     def _get_target_models(self) -> list[str]:
@@ -134,7 +134,8 @@ class BenchmarkHarness:
 
         if self._requested_dimensions:
             return [
-                d for d in registry.ALL_DIMENSIONS
+                d
+                for d in registry.ALL_DIMENSIONS
                 if d.name in self._requested_dimensions
             ]
         return list(registry.ALL_DIMENSIONS)

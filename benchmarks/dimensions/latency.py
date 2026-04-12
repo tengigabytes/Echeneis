@@ -23,9 +23,7 @@ class LatencyBenchmark:
     name: str = "latency"
     requires_vision: bool = False
 
-    async def run(
-        self, harness: BenchmarkHarness, model: str
-    ) -> BenchmarkResult:
+    async def run(self, harness: BenchmarkHarness, model: str) -> BenchmarkResult:
         """Run latency measurement for a single model.
 
         Args:

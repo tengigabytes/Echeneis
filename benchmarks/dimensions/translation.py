@@ -33,9 +33,7 @@ class TranslationBenchmark:
     name: str = "translation"
     requires_vision: bool = False
 
-    async def run(
-        self, harness: BenchmarkHarness, model: str
-    ) -> BenchmarkResult:
+    async def run(self, harness: BenchmarkHarness, model: str) -> BenchmarkResult:
         """Run translation benchmark for a single model.
 
         Args:
@@ -59,9 +57,7 @@ class TranslationBenchmark:
         total_ms = (time.perf_counter() - t_start) * 1000
 
         translated = resp["choices"][0]["message"]["content"]
-        preserved_count, preserved, missing = count_preserved_terms(
-            translated, terms
-        )
+        preserved_count, preserved, missing = count_preserved_terms(translated, terms)
 
         return harness.make_result(
             dimension=self.name,

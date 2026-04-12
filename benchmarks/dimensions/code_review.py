@@ -44,9 +44,7 @@ class CodeReviewBenchmark:
     name: str = "code_review"
     requires_vision: bool = False
 
-    async def run(
-        self, harness: BenchmarkHarness, model: str
-    ) -> BenchmarkResult:
+    async def run(self, harness: BenchmarkHarness, model: str) -> BenchmarkResult:
         """Run code review benchmark for a single model.
 
         Args:
