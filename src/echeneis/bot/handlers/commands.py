@@ -46,6 +46,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "/use <模型> <訊息> — 指定模型回覆\n"
         "/model — 查看目前路由狀態\n"
         "/status — VM 狀態、配額、Gateway 健康度\n"
+        "/eviction — Anti-eviction 狀態與 7 日 duty\n"
+        "/eviction run — 手動觸發 stress test\n"
         "/bench [維度] [模型] — 執行 benchmark 測試\n\n"
         "直接傳送文字 → 一般對話（A 級）\n"
         "傳送圖片 → 視覺分析（A 級）\n"

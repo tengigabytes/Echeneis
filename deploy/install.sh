@@ -33,7 +33,7 @@ info "Installing anti-eviction cron job"
 cp "${CRON_FILE}" /etc/cron.d/echeneis-anti-eviction
 chmod 644 /etc/cron.d/echeneis-anti-eviction
 chmod +x "${INSTALL_DIR}/deploy/anti-eviction.sh"
-info "Anti-eviction cron installed (every 4 hours)"
+info "Anti-eviction cron installed (hourly, adaptive load)"
 
 # ── Auto-update cron ─────────────────────────────────────────────────────────
 

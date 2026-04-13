@@ -107,7 +107,8 @@ sudo bash deploy/install.sh
 sudo systemctl enable --now echeneis
 ```
 
-This installs the systemd service and the anti-eviction cron job.
+This installs the systemd service, the adaptive anti-eviction cron job
+(hourly, targets 80% CPU with duty-time integration), and other cron jobs.
 
 ## 6. Verify
 
@@ -162,6 +163,30 @@ Alerts have a 1-hour cooldown per category to prevent flooding.
 ⏱ 運行 3d 14h 22m
 ```
 
+**Anti-eviction dashboard** — send `/eviction` in Telegram:
+
+```
+🛡 Anti-Eviction 狀態
+🟢 CPU  █░░░░░░░░░   5.2%  (load 0.21, 4 cores)
+🟢 RAM  ███░░░░░░░  8.2/24 GB
+
+📊 7 日 Duty 累計
+🟢 ██████████ 620/604 min (103%)
+   +16 超標
+   執行次數：168
+   上次執行：42m 前
+
+🕐 近期執行
+   04/13 15:00   216s
+   04/13 14:00   216s
+   04/13 13:00   180s
+
+手動觸發：/eviction run
+```
+
+Use `/eviction run` to manually trigger a stress test. The bot shows CPU
+before, during, and after the run, plus the updated 7-day duty total.
+
 ### External Uptime Checks (optional)
 
 #### Cloudflare Health Checks
@@ -211,8 +236,19 @@ tail -20 /var/log/echeneis-deploy.log
 ## 9. Anti-Eviction
 
 Oracle Cloud Free Tier reclaims idle instances when CPU usage drops below
-~20% (95th percentile over 7 days). The `install.sh` script sets up a
-cron job that runs `stress-ng` on all 4 CPUs for 30 seconds every 4 hours.
+~20% (95th percentile over 7 days). The `install.sh` script sets up an
+hourly cron job that adaptively stresses CPU and RAM:
+
+- **Adaptive CPU load**: targets 80% total system CPU. If real services
+  are already using 60%, stress-ng only adds 20%. Always contributes at
+  least 25%, capped at 75%. The 25% floor ensures stress alone exceeds
+  the 20% reclamation threshold even if real workload drops to zero
+  mid-run. Runs at `nice -n 19` so real workloads take priority.
+- **RAM pressure**: holds 2 GB resident memory during each run.
+- **Duty-time integration**: tracks accumulated "good minutes" (CPU >=20%)
+  over a trailing 7-day window in `state/anti-eviction.log`. If the budget
+  is behind target (504 min/week + 100 min safety margin), runs extend up
+  to 10 minutes. If well ahead, runs shrink to 3 minutes.
 
 Check it's running:
 
@@ -221,8 +257,15 @@ Check it's running:
 cat /etc/cron.d/echeneis-anti-eviction
 
 # Check recent runs in syslog
-journalctl -t anti-eviction --since "8 hours ago"
+journalctl -t anti-eviction --since "2 hours ago"
+
+# View duty accumulation log
+cat /var/lib/echeneis/state/anti-eviction.log
+# Format: <epoch> <duration_s>
 ```
+
+Or use the Telegram bot: `/eviction` for a full dashboard, `/eviction run`
+to trigger manually and observe live CPU changes.
 
 ## 10. Running Benchmarks
 

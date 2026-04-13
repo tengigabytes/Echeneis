@@ -200,6 +200,8 @@ A full run across all models uses approximately 308 requests.
 | `/use <model> <msg>` | Route to a specific model |
 | `/model` | Show current routing and health status |
 | `/status` | System dashboard — VM resources, gateway health, quota |
+| `/eviction` | Anti-eviction status — CPU load, 7-day duty accumulation |
+| `/eviction run` | Manually trigger a stress test with live CPU readout |
 | `/bench` | Run benchmark suite |
 
 Send text directly for general conversation (Tier A), photos for vision analysis, or files for document processing. Reply to a bot message to continue multi-turn conversation (up to 6 turns).

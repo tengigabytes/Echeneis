@@ -29,6 +29,7 @@ from echeneis.bot.handlers.commands import (
     think_command,
     use_command,
 )
+from echeneis.bot.handlers.eviction import eviction_command
 from echeneis.bot.handlers.messages import (
     document_message,
     photo_message,
@@ -135,6 +136,7 @@ def main() -> None:
     app.add_handler(CommandHandler("model", model_command))
     app.add_handler(CommandHandler("bench", bench_command))
     app.add_handler(CommandHandler("status", status_command))
+    app.add_handler(CommandHandler("eviction", eviction_command))
 
     # Register message handlers (order matters — more specific first)
     app.add_handler(MessageHandler(filters.PHOTO, photo_message))
