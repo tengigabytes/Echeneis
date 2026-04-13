@@ -11,6 +11,7 @@ services:
     environment:
       - ECHENEIS_CONFIG_DIR=/app/config
       - ECHENEIS_STATE_DIR=/app/state
+      - TZ=Asia/Taipei
     restart: unless-stopped
     logging:
       driver: json-file
@@ -32,6 +33,7 @@ services:
     environment:
       - ECHENEIS_GATEWAY_URL=http://gateway:4000
       - ECHENEIS_STATE_DIR=/app/state
+      - TZ=Asia/Taipei
     volumes:
       - /var/lib/echeneis/state:/app/state
       - /opt/echeneis/deploy:/app/deploy:ro
