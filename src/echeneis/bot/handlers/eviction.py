@@ -185,8 +185,33 @@ async def eviction_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     await _send_reply(sent, "\n".join(parts), parse_mode="HTML")
 
 
+def _progress_bar(pct: float, width: int = 20) -> str:
+    """Render a progress bar for the stress run."""
+    clamped = min(max(pct, 0), 100)
+    filled = round(clamped / 100 * width)
+    return "▓" * filled + "░" * (width - filled)
+
+
+async def _read_plan(proc) -> dict[str, int]:
+    """Read the PLAN line from anti-eviction.sh stdout."""
+    try:
+        line = await asyncio.wait_for(proc.stdout.readline(), timeout=10)
+        text = line.decode().strip()
+        if text.startswith("PLAN "):
+            parts = text.split()
+            return {
+                "stress_load": int(parts[1]),
+                "duration": int(parts[2]),
+                "weekly_duty": int(parts[3]),
+                "weekly_target": int(parts[4]),
+            }
+    except Exception:
+        pass
+    return {}
+
+
 async def _run_stress_background(sent) -> None:
-    """Run anti-eviction.sh in background, updating the message with progress."""
+    """Run anti-eviction.sh in background, updating every 5s with progress."""
     global _stress_running, _stress_started
     _stress_running = True
     _stress_started = time.time()
@@ -201,24 +226,46 @@ async def _run_stress_background(sent) -> None:
             stderr=asyncio.subprocess.STDOUT,
         )
 
-        # Update message periodically while stress-ng runs
+        # Read planned duration from script stdout
+        plan = await _read_plan(proc)
+        total_duration = plan.get("duration", 300)
+        stress_load = plan.get("stress_load", 0)
+
+        last_text = ""
         while True:
             try:
-                await asyncio.wait_for(asyncio.shield(proc.wait()), timeout=30)
+                await asyncio.wait_for(asyncio.shield(proc.wait()), timeout=2)
                 break  # Process finished
             except asyncio.TimeoutError:
-                pass  # Still running, update status
+                pass  # Still running
+
+            elapsed_s = time.time() - _stress_started
+            pct = min(elapsed_s / total_duration * 100, 99)
             vm_now = get_vm_resources()
             elapsed = _fmt_elapsed(_stress_started)
-            try:
-                await sent.edit_text(
-                    f"🔥 執行中（{elapsed}）\n"
-                    f"觸發前 CPU: {vm_before['cpu_pct']:.1f}%\n"
-                    f"目前 CPU: {vm_now['cpu_pct']:.1f}%  "
-                    f"(load {vm_now['load_1m']})"
-                )
-            except Exception:
-                pass  # Telegram rate limit or message unchanged
+            remaining = max(0, int(total_duration - elapsed_s))
+            rm, rs = divmod(remaining, 60)
+
+            text = (
+                f"🔥 <b>Stress Test 執行中</b>\n\n"
+                f"<code>{_progress_bar(pct)}</code> {pct:.0f}%\n"
+                f"⏱ {elapsed} / "
+                f"{total_duration // 60}m"
+                f"{total_duration % 60:02d}s"
+                f"（剩餘 {rm}m{rs:02d}s）\n\n"
+                f"<pre>"
+                f"目標負載:  {stress_load}%\n"
+                f"目前 CPU:  {vm_now['cpu_pct']:>5.1f}%"
+                f"  (load {vm_now['load_1m']})\n"
+                f"觸發前:    {vm_before['cpu_pct']:>5.1f}%"
+                f"</pre>"
+            )
+            if text != last_text:
+                try:
+                    await sent.edit_text(text, parse_mode="HTML")
+                    last_text = text
+                except Exception:
+                    pass
 
         rc = proc.returncode
         vm_after = get_vm_resources()
@@ -228,12 +275,13 @@ async def _run_stress_background(sent) -> None:
         if rc == 0:
             total_elapsed = _fmt_elapsed(_stress_started)
             result = (
-                f"✅ Anti-eviction 完成（{total_elapsed}）\n\n"
+                f"✅ <b>Anti-eviction 完成</b>（{total_elapsed}）\n\n"
+                f"<code>{_progress_bar(100)}</code> 100%\n\n"
                 f"<pre>"
                 f"觸發前 CPU: {vm_before['cpu_pct']:>5.1f}%\n"
                 f"結束後 CPU: {vm_after['cpu_pct']:>5.1f}%\n"
                 f"\n"
-                f"7日 Duty: {summary['total_minutes']:.0f}/"
+                f"7日 Duty:  {summary['total_minutes']:.0f}/"
                 f"{summary['target_minutes']} min "
                 f"({summary['pct']:.0f}%)"
                 f"</pre>"

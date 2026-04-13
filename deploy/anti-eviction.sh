@@ -86,13 +86,16 @@ fi
 logger -t anti-eviction \
     "CPU=${current_cpu}% stress=${stress_load}% duration=${duration}s duty=${weekly_duty}/${WEEKLY_TARGET}min deficit=${deficit}"
 
-# 3. Run stress-ng (nice -n 19: real services always win)
+# 3. Emit plan to stdout (parsed by /eviction run handler)
+echo "PLAN ${stress_load} ${duration} ${weekly_duty} ${WEEKLY_TARGET}"
+
+# 4. Run stress-ng (nice -n 19: real services always win)
 nice -n 19 stress-ng \
     --cpu "$NCPU" --cpu-load "$stress_load" \
     --vm 1 --vm-bytes "$VM_BYTES" --vm-keep --vm-hang 0 \
     --timeout "${duration}s" --quiet
 
-# 4. Log duration for duty tracking
+# 5. Log duration for duty tracking
 # Format: <epoch> <duration_seconds>
 echo "$(date +%s) ${duration}" >> "$STATE_FILE"
 prune_state
