@@ -24,6 +24,13 @@ NCPU=$(nproc)
 STATE_DIR="${ECHENEIS_STATE_DIR:-/var/lib/echeneis/state}"
 STATE_FILE="${STATE_DIR}/anti-eviction.log"
 
+# Host /proc may be mounted at /host/proc inside containers.
+if [[ -f /host/proc/loadavg ]]; then
+    PROC_LOADAVG="/host/proc/loadavg"
+else
+    PROC_LOADAVG="/proc/loadavg"
+fi
+
 # ── Functions ───────────────────────────────────────────────────────────────
 
 get_cpu_pct() {
@@ -31,7 +38,7 @@ get_cpu_pct() {
         pct = ($1 / n) * 100
         if (pct > 100) pct = 100
         printf "%d", pct
-    }' /proc/loadavg
+    }' "$PROC_LOADAVG"
 }
 
 get_weekly_duty() {
@@ -82,7 +89,7 @@ logger -t anti-eviction \
 # 3. Run stress-ng (nice -n 19: real services always win)
 nice -n 19 stress-ng \
     --cpu "$NCPU" --cpu-load "$stress_load" \
-    --vm 1 --vm-bytes "$VM_BYTES" --vm-keep \
+    --vm 1 --vm-bytes "$VM_BYTES" --vm-keep --vm-hang 0 \
     --timeout "${duration}s" --quiet
 
 # 4. Log duration for duty tracking

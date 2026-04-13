@@ -25,7 +25,10 @@ logger = logging.getLogger(__name__)
 _WEEKLY_TARGET = 604  # 504 + 100 safety margin
 _STATE_DIR = os.environ.get("ECHENEIS_STATE_DIR", "/app/state")
 _STATE_FILE = os.path.join(_STATE_DIR, "anti-eviction.log")
-_ANTI_EVICTION_SCRIPT = "/opt/echeneis/deploy/anti-eviction.sh"
+_ANTI_EVICTION_SCRIPT = os.path.join(
+    os.environ.get("ECHENEIS_DEPLOY_DIR", "/app/deploy"),
+    "anti-eviction.sh",
+)
 
 
 def _read_duty_log() -> list[dict[str, Any]]:
