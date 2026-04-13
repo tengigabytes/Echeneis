@@ -93,7 +93,8 @@ async def eviction_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     args = context.args or []
     if args and args[0] == "run":
-        await _trigger_manual_run(update)
+        sent = await update.message.reply_text("⚡ 手動觸發 anti-eviction…")
+        asyncio.create_task(_run_stress_background(sent))
         return
 
     # -- Dashboard mode --
@@ -160,11 +161,8 @@ async def eviction_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     await _send_reply(sent, "\n".join(parts), parse_mode="HTML")
 
 
-async def _trigger_manual_run(update: Update) -> None:
-    """Trigger anti-eviction.sh manually and stream status."""
-    sent = await update.message.reply_text("⚡ 手動觸發 anti-eviction…")
-
-    # Snapshot before
+async def _run_stress_background(sent) -> None:
+    """Run anti-eviction.sh in background, updating the message with progress."""
     vm_before = get_vm_resources()
 
     try:
@@ -175,21 +173,25 @@ async def _trigger_manual_run(update: Update) -> None:
             stderr=asyncio.subprocess.STDOUT,
         )
 
-        # Wait briefly then show live CPU
-        await asyncio.sleep(3)
-        vm_during = get_vm_resources()
-        await sent.edit_text(
-            f"⚡ 執行中…\n"
-            f"觸發前 CPU: {vm_before['cpu_pct']:.1f}%\n"
-            f"目前 CPU: {vm_during['cpu_pct']:.1f}%  "
-            f"(load {vm_during['load_1m']})"
-        )
+        # Update message periodically while stress-ng runs
+        while True:
+            try:
+                await asyncio.wait_for(asyncio.shield(proc.wait()), timeout=30)
+                break  # Process finished
+            except asyncio.TimeoutError:
+                pass  # Still running, update status
+            vm_now = get_vm_resources()
+            try:
+                await sent.edit_text(
+                    f"⚡ 執行中…\n"
+                    f"觸發前 CPU: {vm_before['cpu_pct']:.1f}%\n"
+                    f"目前 CPU: {vm_now['cpu_pct']:.1f}%  "
+                    f"(load {vm_now['load_1m']})"
+                )
+            except Exception:
+                pass  # Telegram rate limit or message unchanged
 
-        # Wait for completion
-        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=660)
         rc = proc.returncode
-
-        # Snapshot after
         vm_after = get_vm_resources()
         entries = _read_duty_log()
         summary = _duty_summary(entries)
@@ -199,7 +201,6 @@ async def _trigger_manual_run(update: Update) -> None:
                 f"✅ Anti-eviction 完成\n\n"
                 f"<pre>"
                 f"觸發前 CPU: {vm_before['cpu_pct']:>5.1f}%\n"
-                f"執行中 CPU: {vm_during['cpu_pct']:>5.1f}%\n"
                 f"結束後 CPU: {vm_after['cpu_pct']:>5.1f}%\n"
                 f"\n"
                 f"7日 Duty: {summary['total_minutes']:.0f}/"
@@ -212,13 +213,9 @@ async def _trigger_manual_run(update: Update) -> None:
 
         await _send_reply(sent, result, parse_mode="HTML")
 
-    except asyncio.TimeoutError:
-        await sent.edit_text("❌ 執行逾時（超過 11 分鐘）")
-    except FileNotFoundError:
-        await sent.edit_text(
-            f"❌ 找不到 anti-eviction.sh\n<code>{_ANTI_EVICTION_SCRIPT}</code>",
-            parse_mode="HTML",
-        )
     except Exception as e:
         logger.error("Manual anti-eviction failed: %s", e)
-        await sent.edit_text(f"❌ 執行錯誤: {e}")
+        try:
+            await sent.edit_text(f"❌ 執行錯誤: {e}")
+        except Exception:
+            pass
