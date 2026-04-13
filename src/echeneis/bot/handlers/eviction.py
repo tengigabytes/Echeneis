@@ -30,6 +30,10 @@ _ANTI_EVICTION_SCRIPT = os.path.join(
     "anti-eviction.sh",
 )
 
+# Runtime state for the manual stress run.
+_stress_running = False
+_stress_started: float = 0.0
+
 
 def _read_duty_log() -> list[dict[str, Any]]:
     """Parse anti-eviction.log and return entries from the last 7 days."""
@@ -62,7 +66,9 @@ def _duty_summary(entries: list[dict[str, Any]]) -> dict[str, Any]:
         "run_count": run_count,
         "last_run_ts": last_run,
         "target_minutes": _WEEKLY_TARGET,
-        "pct": round(total_minutes / _WEEKLY_TARGET * 100, 1) if _WEEKLY_TARGET else 0,
+        "pct": (
+            round(total_minutes / _WEEKLY_TARGET * 100, 1) if _WEEKLY_TARGET else 0
+        ),
     }
 
 
@@ -86,6 +92,13 @@ def _fmt_ago(ts: float) -> str:
     return f"{delta // 86400}d {(delta % 86400) // 3600}h 前"
 
 
+def _fmt_elapsed(start: float) -> str:
+    """Format elapsed time since start."""
+    elapsed = int(time.time() - start)
+    m, s = divmod(elapsed, 60)
+    return f"{m}m{s:02d}s"
+
+
 async def eviction_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /eviction — show anti-eviction status or trigger manual run."""
     if not is_authorized(update):
@@ -93,6 +106,12 @@ async def eviction_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     args = context.args or []
     if args and args[0] == "run":
+        if _stress_running:
+            elapsed = _fmt_elapsed(_stress_started)
+            await update.message.reply_text(
+                f"⚠️ Stress test 已在執行中（已跑 {elapsed}）"
+            )
+            return
         sent = await update.message.reply_text("⚡ 手動觸發 anti-eviction…")
         asyncio.create_task(_run_stress_background(sent))
         return
@@ -124,6 +143,11 @@ async def eviction_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     parts: list[str] = []
     parts.append("🛡 <b>Anti-Eviction 狀態</b>")
+
+    # Running indicator
+    if _stress_running:
+        elapsed = _fmt_elapsed(_stress_started)
+        parts.append(f"🔥 <b>Stress test 執行中</b>（已跑 {elapsed}）")
 
     cpu_line = (
         f"{cpu_icon} CPU  {_bar(vm['cpu_pct'])} {vm['cpu_pct']:>5.1f}%  "
@@ -163,6 +187,10 @@ async def eviction_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 async def _run_stress_background(sent) -> None:
     """Run anti-eviction.sh in background, updating the message with progress."""
+    global _stress_running, _stress_started
+    _stress_running = True
+    _stress_started = time.time()
+
     vm_before = get_vm_resources()
 
     try:
@@ -181,9 +209,10 @@ async def _run_stress_background(sent) -> None:
             except asyncio.TimeoutError:
                 pass  # Still running, update status
             vm_now = get_vm_resources()
+            elapsed = _fmt_elapsed(_stress_started)
             try:
                 await sent.edit_text(
-                    f"⚡ 執行中…\n"
+                    f"🔥 執行中（{elapsed}）\n"
                     f"觸發前 CPU: {vm_before['cpu_pct']:.1f}%\n"
                     f"目前 CPU: {vm_now['cpu_pct']:.1f}%  "
                     f"(load {vm_now['load_1m']})"
@@ -197,8 +226,9 @@ async def _run_stress_background(sent) -> None:
         summary = _duty_summary(entries)
 
         if rc == 0:
+            total_elapsed = _fmt_elapsed(_stress_started)
             result = (
-                f"✅ Anti-eviction 完成\n\n"
+                f"✅ Anti-eviction 完成（{total_elapsed}）\n\n"
                 f"<pre>"
                 f"觸發前 CPU: {vm_before['cpu_pct']:>5.1f}%\n"
                 f"結束後 CPU: {vm_after['cpu_pct']:>5.1f}%\n"
@@ -219,3 +249,5 @@ async def _run_stress_background(sent) -> None:
             await sent.edit_text(f"❌ 執行錯誤: {e}")
         except Exception:
             pass
+    finally:
+        _stress_running = False
