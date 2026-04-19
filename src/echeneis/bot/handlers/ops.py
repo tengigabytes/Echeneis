@@ -54,12 +54,13 @@ async def broadcast_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     admin_id = update.effective_user.id if update.effective_user else 0
     store = get_store()
+    # Include all admins (even the sender — acts as a sent-receipt so the
+    # admin sees exactly what others will receive) and non-banned guests.
     recipients = set(store.list_admins())
     recipients.update(uid for uid, rec in store.list_guests() if not rec.get("banned"))
-    recipients.discard(admin_id)  # don't spam the sender
 
     if not recipients:
-        await update.message.reply_text("沒有其他收件人。")
+        await update.message.reply_text("沒有收件人。")
         return
 
     prefix = f"📢 <b>管理員公告</b>\n\n{message}"

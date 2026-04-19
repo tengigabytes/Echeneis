@@ -52,16 +52,16 @@ def _mk_update(user_id: int, args: list[str] | None = None):
 
 
 @pytest.mark.asyncio
-async def test_broadcast_sends_to_all_non_sender(tmp_path):
+async def test_broadcast_sends_to_admins_and_guests(tmp_path):
     get_store().add_guest(GUEST1_ID, name="A")
     get_store().add_guest(GUEST2_ID, name="B")
 
     update, ctx = _mk_update(ADMIN_ID, ["Hello", "everyone"])
     await broadcast_command(update, ctx)
 
-    # Two guest sends, zero admin-self sends (sender skipped).
+    # Admins (including the sender, as a sent-receipt) + guests.
     chat_ids = {c.kwargs["chat_id"] for c in ctx.bot.send_message.call_args_list}
-    assert chat_ids == {GUEST1_ID, GUEST2_ID}
+    assert chat_ids == {ADMIN_ID, GUEST1_ID, GUEST2_ID}
 
     # Audit entry exists.
     entries = tail_audit(10, audit_file=str(tmp_path / "admin_audit.jsonl"))
@@ -87,7 +87,8 @@ async def test_broadcast_skips_banned_guests():
     await broadcast_command(update, ctx)
 
     chat_ids = {c.kwargs["chat_id"] for c in ctx.bot.send_message.call_args_list}
-    assert chat_ids == {GUEST1_ID}  # banned guest not notified
+    # Admin + non-banned guest; GUEST2 is banned so excluded.
+    assert chat_ids == {ADMIN_ID, GUEST1_ID}
 
 
 @pytest.mark.asyncio
