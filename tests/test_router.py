@@ -8,6 +8,7 @@ from echeneis.gateway.classifier import Classification
 from echeneis.gateway.config import FailoverConfig, RoutingConfig
 from echeneis.gateway.health import HealthTracker
 from echeneis.gateway.router import ModelEntry, Router
+from echeneis.gateway.usage import UsageTracker
 
 _TEST_CONFIG = RoutingConfig.from_dict(
     {
@@ -41,9 +42,9 @@ _REGISTRY = {
 }
 
 
-def _router() -> Router:
+def _router(usage: UsageTracker | None = None) -> Router:
     health = HealthTracker(FailoverConfig())
-    return Router(_TEST_CONFIG, _REGISTRY, health)
+    return Router(_TEST_CONFIG, _REGISTRY, health, usage_tracker=usage)
 
 
 class TestModelSelection:
@@ -101,6 +102,44 @@ class TestRouting:
                 [{"role": "user", "content": "translate hello"}],
             )
         assert call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_route_direct_records_usage(self) -> None:
+        """/use and /health probes hit route_direct — must still bump RPM/RPD."""
+        usage = UsageTracker()
+        usage.set_limits("mistral-large-3", rpm=60, rpd=0)
+        router = _router(usage)
+        mock_response = AsyncMock(
+            return_value={"choices": [{"message": {"content": "hi"}}]}
+        )
+
+        with patch("echeneis.gateway.router.litellm.acompletion", mock_response):
+            await router.route_direct(
+                "mistral-large-3",
+                [{"role": "user", "content": "hi"}],
+            )
+
+        row = usage.get_all_usage().get("mistral-large-3", {})
+        assert row.get("used_rpd", 0) == 1
+
+    @pytest.mark.asyncio
+    async def test_route_records_usage(self) -> None:
+        """Sanity: classified routes still record (regression guard)."""
+        usage = UsageTracker()
+        usage.set_limits("mistral-large-3", rpm=60, rpd=0)
+        router = _router(usage)
+        mock_response = AsyncMock(
+            return_value={"choices": [{"message": {"content": "hi"}}]}
+        )
+
+        with patch("echeneis.gateway.router.litellm.acompletion", mock_response):
+            await router.route(
+                Classification(task_type="translation", tier="A"),
+                [{"role": "user", "content": "hi"}],
+            )
+
+        row = usage.get_all_usage().get("mistral-large-3", {})
+        assert row.get("used_rpd", 0) == 1
 
     @pytest.mark.asyncio
     async def test_all_models_fail_raises(self) -> None:

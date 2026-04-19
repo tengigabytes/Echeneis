@@ -296,6 +296,12 @@ class Router:
         try:
             response = await litellm.acompletion(**call_kwargs)
             self._health.record_success(short_name)
+            # Direct calls (/use, /health probes) consume the same provider
+            # quota as classified routes, so they must feed UsageTracker too.
+            # Without this, /status under-reports RPM/RPD and rate limiters
+            # miss real traffic.
+            if self._usage:
+                self._usage.record_request(short_name)
             return RoutedResponse(response=response, model_name=short_name)
         except Exception as e:
             self._health.record_failure(short_name, getattr(e, "status_code", 500))
