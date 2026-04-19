@@ -17,6 +17,7 @@ from datetime import datetime
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from echeneis.bot.audit import log_admin_action
 from echeneis.bot.middleware import require_admin
 from echeneis.bot.user_store import Role, get_store
 
@@ -83,6 +84,15 @@ async def adduser_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         parse_mode="HTML",
     )
     logger.info("Admin %s added guest %s (name=%r)", admin_id, uid, name)
+    log_admin_action(
+        admin_id,
+        "adduser",
+        target=uid,
+        detail=f"name={name!r}",
+        admin_username=(update.effective_user.username or "")
+        if update.effective_user
+        else "",
+    )
 
 
 @require_admin
@@ -117,6 +127,14 @@ async def removeuser_command(
         f"✅ 已移除 guest：<code>{uid}</code>", parse_mode="HTML"
     )
     logger.info("Admin %s removed guest %s", admin_id, uid)
+    log_admin_action(
+        admin_id,
+        "removeuser",
+        target=uid,
+        admin_username=(update.effective_user.username or "")
+        if update.effective_user
+        else "",
+    )
 
 
 @require_admin
@@ -173,6 +191,14 @@ async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         f"🚫 已停用 guest：<code>{uid}</code>", parse_mode="HTML"
     )
     logger.info("Admin %s banned guest %s", admin_id, uid)
+    log_admin_action(
+        admin_id,
+        "ban",
+        target=uid,
+        admin_username=(update.effective_user.username or "")
+        if update.effective_user
+        else "",
+    )
 
 
 @require_admin
@@ -198,6 +224,14 @@ async def unban_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         f"✅ 已恢復 guest：<code>{uid}</code>", parse_mode="HTML"
     )
     logger.info("Admin %s unbanned guest %s", admin_id, uid)
+    log_admin_action(
+        admin_id,
+        "unban",
+        target=uid,
+        admin_username=(update.effective_user.username or "")
+        if update.effective_user
+        else "",
+    )
 
 
 @require_admin

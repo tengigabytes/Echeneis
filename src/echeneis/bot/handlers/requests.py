@@ -24,6 +24,7 @@ from telegram import (
 from telegram.error import BadRequest, Forbidden
 from telegram.ext import ContextTypes
 
+from echeneis.bot.audit import log_admin_action
 from echeneis.bot.middleware import public, require_admin
 from echeneis.bot.request_store import get_request_store
 from echeneis.bot.user_store import Role, get_store
@@ -326,6 +327,13 @@ async def _handle_decision(
         admin.id,
         "approved" if approve else "denied",
         target_id,
+    )
+    log_admin_action(
+        admin.id,
+        "approve" if approve else "deny",
+        target=target_id,
+        detail=f"reason={record.get('reason', '')!r}",
+        admin_username=admin.username or "",
     )
 
 

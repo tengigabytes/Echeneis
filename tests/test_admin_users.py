@@ -37,6 +37,7 @@ def _mk_update(
 ) -> tuple[MagicMock, MagicMock]:
     update = MagicMock()
     update.effective_user.id = user_id
+    update.effective_user.username = "tester"  # keep audit log JSON-serialisable
     update.message.reply_text = AsyncMock()
     ctx = MagicMock()
     ctx.args = args or []

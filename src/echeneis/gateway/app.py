@@ -26,6 +26,39 @@ _ROUTING_RULES = _CONFIG_DIR / "routing_rules.yaml"
 _LITELLM_CONFIG = _CONFIG_DIR / "litellm_config.yaml"
 
 
+def _install_file_logging() -> None:
+    """Add a rotating WARNING+ file handler so /logs can tail gateway events.
+
+    Idempotent: skips if already attached. Runs once at create_app() time.
+    """
+    from logging.handlers import RotatingFileHandler
+
+    root = logging.getLogger()
+    if any(
+        isinstance(h, RotatingFileHandler) and h.name == "echeneis-gateway"
+        for h in root.handlers
+    ):
+        return
+
+    state_dir = os.environ.get("ECHENEIS_STATE_DIR", "/app/state")
+    try:
+        os.makedirs(state_dir, exist_ok=True)
+        fh = RotatingFileHandler(
+            os.path.join(state_dir, "gateway.log"),
+            maxBytes=10 * 1024 * 1024,
+            backupCount=3,
+            encoding="utf-8",
+        )
+        fh.name = "echeneis-gateway"
+        fh.setLevel(logging.WARNING)
+        fh.setFormatter(
+            logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+        )
+        root.addHandler(fh)
+    except OSError as exc:
+        logger.warning("Could not open gateway.log for WARNING+ logging: %s", exc)
+
+
 def create_app(
     routing_rules_path: str | Path | None = None,
     litellm_config_path: str | Path | None = None,
@@ -39,6 +72,8 @@ def create_app(
     Returns:
         Configured FastAPI app.
     """
+    _install_file_logging()
+
     routing_path = Path(routing_rules_path or _ROUTING_RULES)
     litellm_path = Path(litellm_config_path or _LITELLM_CONFIG)
 

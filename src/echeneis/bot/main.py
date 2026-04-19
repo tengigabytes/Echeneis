@@ -45,6 +45,12 @@ from echeneis.bot.handlers.messages import (
     photo_message,
     text_message,
 )
+from echeneis.bot.handlers.ops import (
+    broadcast_command,
+    health_command,
+    logs_command,
+    reload_command,
+)
 from echeneis.bot.handlers.requests import (
     pending_command,
     request_callback,
@@ -110,12 +116,40 @@ async def _post_shutdown(app) -> None:
         await gateway.close()
 
 
+def _setup_logging() -> None:
+    """Console logging at INFO + rotating file handler at WARNING+.
+
+    The file handler lets the admin /logs command tail warnings without
+    needing shell access. Bot and gateway each write to their own file
+    under ECHENEIS_STATE_DIR so /logs can read both independently.
+    """
+    from logging.handlers import RotatingFileHandler
+
+    fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+
+    console = logging.StreamHandler()
+    console.setFormatter(fmt)
+    root.addHandler(console)
+
+    state_dir = os.environ.get("ECHENEIS_STATE_DIR", "/app/state")
+    try:
+        os.makedirs(state_dir, exist_ok=True)
+        log_path = os.path.join(state_dir, "bot.log")
+        fh = RotatingFileHandler(
+            log_path, maxBytes=10 * 1024 * 1024, backupCount=3, encoding="utf-8"
+        )
+        fh.setLevel(logging.WARNING)
+        fh.setFormatter(fmt)
+        root.addHandler(fh)
+    except OSError as exc:
+        logger.warning("Could not open bot.log for WARNING+ file logging: %s", exc)
+
+
 def main() -> None:
     """Start the Telegram bot."""
-    logging.basicConfig(
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-        level=logging.INFO,
-    )
+    _setup_logging()
 
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
     if not token:
@@ -163,6 +197,12 @@ def main() -> None:
     app.add_handler(CommandHandler("unban", unban_command))
     app.add_handler(CommandHandler("whois", whois_command))
     app.add_handler(CommandHandler("pending", pending_command))
+
+    # Admin: ops
+    app.add_handler(CommandHandler("broadcast", broadcast_command))
+    app.add_handler(CommandHandler("logs", logs_command))
+    app.add_handler(CommandHandler("health", health_command))
+    app.add_handler(CommandHandler("reload", reload_command))
 
     # Inline keyboard callbacks (approve/deny/send-request)
     app.add_handler(CallbackQueryHandler(request_callback, pattern=r"^req:"))
