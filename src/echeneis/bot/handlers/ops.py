@@ -124,24 +124,21 @@ async def logs_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     parts: list[str] = []
     if bot_lines:
-        parts.append("<b>bot.log</b>")
-        parts.append("<pre>" + _escape_html("\n".join(bot_lines)) + "</pre>")
+        parts.append("=== bot.log ===")
+        parts.extend(bot_lines)
     if gw_lines:
-        parts.append("<b>gateway.log</b>")
-        parts.append("<pre>" + _escape_html("\n".join(gw_lines)) + "</pre>")
+        if parts:
+            parts.append("")
+        parts.append("=== gateway.log ===")
+        parts.extend(gw_lines)
 
     text = "\n".join(parts)
     # Telegram message cap ~4096; truncate from the front if needed so the
     # newest lines (most relevant) survive.
     if len(text) > 3800:
-        text = text[-3800:]
-        text = "…\n" + text
+        text = "…\n" + text[-3800:]
 
-    await update.message.reply_text(text, parse_mode="HTML")
-
-
-def _escape_html(s: str) -> str:
-    return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    await update.message.reply_text(text, parse_mode=None)
 
 
 # ── /health ───────────────────────────────────────────────────────────
