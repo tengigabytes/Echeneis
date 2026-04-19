@@ -12,6 +12,7 @@ import time
 
 from telegram.ext import (
     ApplicationBuilder,
+    CallbackQueryHandler,
     CommandHandler,
     MessageHandler,
     filters,
@@ -43,6 +44,11 @@ from echeneis.bot.handlers.messages import (
     document_message,
     photo_message,
     text_message,
+)
+from echeneis.bot.handlers.requests import (
+    pending_command,
+    request_callback,
+    request_command,
 )
 from echeneis.bot.handlers.status import set_boot_time, status_command
 from echeneis.bot.monitor import SystemMonitor
@@ -139,6 +145,7 @@ def main() -> None:
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("whoami", whoami_command))
+    app.add_handler(CommandHandler("request", request_command))
     app.add_handler(CommandHandler("think", think_command))
     app.add_handler(CommandHandler("fast", fast_command))
     app.add_handler(CommandHandler("models", models_command))
@@ -155,6 +162,10 @@ def main() -> None:
     app.add_handler(CommandHandler("ban", ban_command))
     app.add_handler(CommandHandler("unban", unban_command))
     app.add_handler(CommandHandler("whois", whois_command))
+    app.add_handler(CommandHandler("pending", pending_command))
+
+    # Inline keyboard callbacks (approve/deny/send-request)
+    app.add_handler(CallbackQueryHandler(request_callback, pattern=r"^req:"))
 
     # Register message handlers (order matters — more specific first)
     app.add_handler(MessageHandler(filters.PHOTO, photo_message))
