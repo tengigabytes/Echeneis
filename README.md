@@ -10,13 +10,16 @@ A self-hosted AI gateway that unifies multiple LLM providers into a single OpenA
 
 - **Unified OpenAI-compatible endpoint** — drop-in replacement for any OpenAI SDK client
 - **Tiered routing** — task classifier routes requests to S/A/B model tiers based on complexity
-- **Auto failover** — per-provider rate limit tracking with automatic fallback within tiers
+- **Multi-provider failover chains** — each task lists fallbacks across distinct providers so a single outage can't break a tier
 - **Rate limit management** — tracks quotas across all providers with persistent RPD counters that survive restarts
-- **Telegram Bot** — multi-turn conversation (reply to continue), vision, translation, and document processing
-- **System monitoring** — `/status` dashboard, proactive alerts for VM resources, quota exhaustion, and circuit breaker events
+- **Telegram Bot** — multi-turn conversation, vision, translation, document processing, math output normalised to Unicode
+- **Role-based access** — admin / guest / unregistered tiers, self-service registration via inline Approve/Deny keyboard, append-only audit log of every admin action
+- **Usage dashboard** — per-user × per-model request counts over 1-day / 7-day / all-time windows, with nightly archive compaction
+- **System monitoring** — `/status` dashboard, `/health` active probe (detects provider-side DEGRADED states), proactive alerts for VM resources, quota exhaustion, and circuit breaker events
+- **In-bot ops** — `/broadcast`, `/logs`, `/reload`, `/adduser`, `/ban`, `/pending`, … for admin operations without an SSH session
 - **MCP Server** — tool call entry point for Claude Code and other AI agents
 - **Benchmark suite** — automated 7-dimension evaluation across all providers, with real-time Telegram progress updates
-- **Graceful auto-deploy** — defers service restart when long-running tasks (benchmarks, etc.) are active
+- **Graceful auto-deploy** — CI-gated, defers service restart when long-running tasks (benchmarks, etc.) are active
 
 ## Architecture
 
@@ -46,6 +49,7 @@ graph TD
         GH[GitHub Models]
         OR[OpenRouter]
         GEM[Gemini API]
+        NIM[NVIDIA NIM]
     end
 
     TB --> TC
@@ -70,6 +74,7 @@ graph TD
     FO --> GH
     FO --> OR
     FO --> GEM
+    FO --> NIM
 ```
 
 ## Supported Providers
@@ -84,6 +89,7 @@ graph TD
 | GitHub Models | GPT-4o |
 | OpenRouter | Various open models |
 | Gemini API | Gemini |
+| NVIDIA NIM | Nemotron Super, Mistral Large 3, Mistral Nemotron, Llama 4 Maverick, Gemma 3, Devstral |
 
 ## Tiered Routing
 
@@ -190,21 +196,45 @@ A full run across all models uses approximately 308 requests.
 
 ### Commands
 
+**Public (anyone, including unregistered users)**
+
 | Command | Description |
 |---------|-------------|
-| `/start` | Welcome message |
-| `/help` | Show all available commands |
+| `/start` | Welcome; shows your Telegram ID and current role |
+| `/help` | Role-aware command list |
+| `/whoami` | Your ID, username, and role (admin / guest / unregistered) |
+| `/request [reason]` | Submit a registration request for admin approval |
+
+**Registered user (admin + guest)**
+
+| Command | Description |
+|---------|-------------|
 | `/think <msg>` | Deep reasoning mode (Tier S) |
 | `/fast <msg>` | Quick batch mode (Tier B) |
-| `/models` | List available models with quota |
+| `/models` | List available models with live quota |
 | `/use <model> <msg>` | Route to a specific model |
 | `/model` | Show current routing and health status |
-| `/status` | System dashboard — VM resources, gateway health, quota |
-| `/eviction` | Anti-eviction status — CPU load, 7-day duty accumulation |
-| `/eviction run` | Manually trigger a stress test with live CPU readout |
+| `/status` | Dashboard — VM resources, gateway health, quota, and usage table |
+| `/raw` | Toggle automatic LaTeX/Markdown → Unicode conversion on replies |
+
+**Admin-only**
+
+| Command | Description |
+|---------|-------------|
+| `/adduser <id> [name]` | Register a new guest |
+| `/removeuser <id>` | Remove a guest |
+| `/listusers` | List admins and guests |
+| `/ban <id>` / `/unban <id>` | Soft-disable / reinstate a guest |
+| `/whois <id>` | Look up a user's registration record |
+| `/pending` | List open registration requests |
+| `/broadcast <msg>` | Send a message to every admin and non-banned guest |
+| `/logs [N]` | Last N WARNING+ log lines from bot and gateway |
+| `/health` | Active probe of every model (detects DEGRADED / rate limited / timeout) |
+| `/reload` | Hot-reload users.json, pending_requests.json, and the prompt cache |
+| `/eviction` | Anti-eviction idle-service status |
 | `/bench` | Run benchmark suite |
 
-Send text directly for general conversation (Tier A), photos for vision analysis, or files for document processing. Reply to a bot message to continue multi-turn conversation (up to 6 turns).
+Send text directly for general conversation (Tier A), photos for vision analysis, or files for document processing. Reply to a bot message to continue multi-turn conversation (up to 6 turns). Unregistered users receive a one-tap inline keyboard to submit an access request.
 
 ### Monitoring and Alerts
 

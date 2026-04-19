@@ -71,9 +71,13 @@ nano .env  # Add your API keys
 | `GITHUB_TOKEN` | GitHub PAT (for GitHub Models) |
 | `OPENROUTER_API_KEY` | OpenRouter API key |
 | `GEMINI_API_KEY` | Google Gemini API key |
+| `NVIDIA_API_KEY` | NVIDIA NIM (build.nvidia.com) API key |
 | `TELEGRAM_BOT_TOKEN` | Telegram bot token |
-| `TELEGRAM_ALLOWED_USERS` | Comma-separated Telegram user IDs |
+| `TELEGRAM_ADMIN_USERS` | Comma-separated Telegram user IDs for admins |
+| `TELEGRAM_ALLOWED_USERS` | (Legacy) same semantics as above; read when `TELEGRAM_ADMIN_USERS` is unset |
 | `TELEGRAM_ADMIN_CHAT_ID` | (Optional) Separate chat for system alerts |
+
+Guest users are managed at runtime by admins via `/adduser` / `/removeuser`; they live in `state/users.json` rather than an env variable.
 
 Not all keys are required. The gateway adapts to whichever providers
 have valid keys configured.
@@ -107,8 +111,9 @@ sudo bash deploy/install.sh
 sudo systemctl enable --now echeneis
 ```
 
-This installs the systemd service, the adaptive anti-eviction cron job
-(hourly, targets 80% CPU with duty-time integration), and other cron jobs.
+This installs two systemd services — `echeneis` (the Docker stack) and
+`echeneis-idle` (the anti-eviction CPU load) — plus cron jobs for
+auto-update, daily digest, and usage-log archive.
 
 ## 6. Verify
 
@@ -163,29 +168,23 @@ Alerts have a 1-hour cooldown per category to prevent flooding.
 ⏱ 運行 3d 14h 22m
 ```
 
-**Anti-eviction dashboard** — send `/eviction` in Telegram:
+**Anti-eviction dashboard** — send `/eviction` in Telegram (admin only):
 
 ```
 🛡 Anti-Eviction 狀態
-🟢 CPU  █░░░░░░░░░   5.2%  (load 0.21, 4 cores)
+🟢 CPU  ██░░░░░░░░  21.4%  (load 0.84, 4 cores)
 🟢 RAM  ███░░░░░░░  8.2/24 GB
 
-📊 7 日 Duty 累計
-🟢 ██████████ 620/604 min (103%)
-   +16 超標
-   執行次數：168
-   上次執行：42m 前
-
-🕐 近期執行
-   04/13 15:00   216s
-   04/13 14:00   216s
-   04/13 13:00   180s
-
-手動觸發：/eviction run
+📋 Idle Service
+模式：常駐 stress-ng (Nice=19, SCHED_IDLE)
+目標：~21% 總 CPU（1 核 × 84%）
+狀態：健康（> 20% 閾值）
+策略：100% 時間 > 20% 閾值，永不觸發回收
 ```
 
-Use `/eviction run` to manually trigger a stress test. The bot shows CPU
-before, during, and after the run, plus the updated 7-day duty total.
+The service runs continuously with the lowest possible scheduling
+priority, so real workload always gets the CPU first. Raw service
+status is available on the VM with `systemctl status echeneis-idle`.
 
 ### External Uptime Checks (optional)
 
@@ -236,36 +235,34 @@ tail -20 /var/log/echeneis-deploy.log
 ## 9. Anti-Eviction
 
 Oracle Cloud Free Tier reclaims idle instances when CPU usage drops below
-~20% (95th percentile over 7 days). The `install.sh` script sets up an
-hourly cron job that adaptively stresses CPU and RAM:
+~20% (95th percentile over 7 days). `install.sh` installs a long-running
+systemd service that holds the total CPU above the threshold at all times:
 
-- **Adaptive CPU load**: targets 80% total system CPU. If real services
-  are already using 60%, stress-ng only adds 20%. Always contributes at
-  least 25%, capped at 75%. The 25% floor ensures stress alone exceeds
-  the 20% reclamation threshold even if real workload drops to zero
-  mid-run. Runs at `nice -n 19` so real workloads take priority.
-- **RAM pressure**: holds 2 GB resident memory during each run.
-- **Duty-time integration**: tracks accumulated "good minutes" (CPU >=20%)
-  over a trailing 7-day window in `state/anti-eviction.log`. If the budget
-  is behind target (504 min/week + 100 min safety margin), runs extend up
-  to 10 minutes. If well ahead, runs shrink to 3 minutes.
+- **`echeneis-idle.service`**: `stress-ng --cpu 1 --cpu-load 84
+  --cpu-method matrixprod --quiet` — one core held at 84% of wall time,
+  which averages ~21% of a 4-OCPU instance (always above the 20%
+  reclamation threshold).
+- **Priority**: `Nice=19`, `SCHED_IDLE`, and `IOSchedulingClass=idle`.
+  Real services take CPU ahead of the stress load, so the perceived
+  impact on workload latency is near zero.
+- **Self-restart**: `Restart=always`, so a process crash automatically
+  resumes the load without manual intervention.
 
 Check it's running:
 
 ```bash
-# View cron job
-cat /etc/cron.d/echeneis-anti-eviction
+# Service state
+sudo systemctl status echeneis-idle
 
-# Check recent runs in syslog
-journalctl -t anti-eviction --since "2 hours ago"
+# Live CPU — expect the 'ni' (nice) column to sit around 20-22%
+top -b -n 1 | head -5
 
-# View duty accumulation log
-cat /var/lib/echeneis/state/anti-eviction.log
-# Format: <epoch> <duration_s>
+# journal
+sudo journalctl -u echeneis-idle --since "1 hour ago"
 ```
 
-Or use the Telegram bot: `/eviction` for a full dashboard, `/eviction run`
-to trigger manually and observe live CPU changes.
+Or use `/eviction` in Telegram (admin only) for a summary with CPU,
+memory, and the service strategy.
 
 ## 10. Running Benchmarks
 
