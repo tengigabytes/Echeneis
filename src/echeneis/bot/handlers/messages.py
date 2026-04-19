@@ -80,6 +80,7 @@ async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
     gateway: GatewayClient = context.bot_data["gateway"]
     convo: ConversationStore = context.bot_data["conversation"]
+    _ensure_reply_parent_recovered(convo, update.message)
     parent_id = _get_reply_parent_id(update.message)
 
     # Store user message and build history chain
@@ -130,6 +131,7 @@ async def photo_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 
     gateway: GatewayClient = context.bot_data["gateway"]
     convo: ConversationStore = context.bot_data["conversation"]
+    _ensure_reply_parent_recovered(convo, update.message)
     parent_id = _get_reply_parent_id(update.message)
 
     sent = await update.message.reply_text("分析圖片中…")
@@ -206,6 +208,7 @@ async def document_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
     gateway: GatewayClient = context.bot_data["gateway"]
     convo: ConversationStore = context.bot_data["conversation"]
+    _ensure_reply_parent_recovered(convo, update.message)
     parent_id = _get_reply_parent_id(update.message)
 
     sent = await update.message.reply_text("讀取檔案中…")
@@ -331,6 +334,34 @@ def _get_reply_parent_id(message: Message) -> int | None:
     if reply is None:
         return None
     return reply.message_id
+
+
+def _ensure_reply_parent_recovered(convo: ConversationStore, message: Message) -> None:
+    """Reconstruct a missing parent entry from Telegram's reply metadata.
+
+    If the user replies to a bot message that isn't in our store
+    (expired, bot was restarting when the original was sent, archive
+    dropped it), Telegram still attaches the parent's text to the
+    update. Synthesising an assistant entry from that text keeps the
+    chain from breaking silently — the model sees the immediate
+    predecessor even if deeper history is gone.
+    """
+    reply = message.reply_to_message
+    if reply is None:
+        return
+    # Defensive: Telegram attributes should be int/str but test doubles
+    # and odd media types may leak other types. Skip rather than persist
+    # something non-serialisable.
+    reply_id = getattr(reply, "message_id", None)
+    if not isinstance(reply_id, int):
+        return
+    if convo.has(reply_id):
+        return
+    text = getattr(reply, "text", None) or getattr(reply, "caption", None)
+    if not isinstance(text, str) or not text:
+        return
+    # No upstream parent known; chain starts here.
+    convo.store_assistant(reply_id, text, parent_id=0, model=None)
 
 
 def _get_extension(filename: str) -> str:

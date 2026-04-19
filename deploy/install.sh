@@ -68,6 +68,15 @@ chmod 644 /etc/cron.d/echeneis-archive-usage
 chmod +x "${INSTALL_DIR}/deploy/archive-usage.sh"
 info "Usage archive cron installed (03:15 daily, 90-day retention)"
 
+# ── Conversation archive cron ────────────────────────────────────────────────
+
+info "Installing conversation archive cron job"
+cp "${INSTALL_DIR}/deploy/echeneis-archive-conversations.cron" \
+    /etc/cron.d/echeneis-archive-conversations
+chmod 644 /etc/cron.d/echeneis-archive-conversations
+chmod +x "${INSTALL_DIR}/deploy/archive-conversations.sh"
+info "Conversation archive cron installed (03:25 daily, 90-day FIFO retention)"
+
 # ── Done ─────────────────────────────────────────────────────────────────────
 
 echo ""

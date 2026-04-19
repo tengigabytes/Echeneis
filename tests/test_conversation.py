@@ -1,11 +1,21 @@
 """Tests for the conversation store."""
 
+import json
 import time
+
+import pytest
 
 from echeneis.bot.conversation import (
     TELEGRAM_SYSTEM_PROMPT,
     ConversationStore,
 )
+
+
+@pytest.fixture(autouse=True)
+def _fresh_state(tmp_path, monkeypatch):
+    """Route each test's persistence to a throwaway tmp directory."""
+    monkeypatch.setenv("ECHENEIS_STATE_DIR", str(tmp_path))
+    yield
 
 
 class TestConversationStore:
@@ -134,20 +144,95 @@ class TestConversationStore:
 
         assert store.get_chain_model(12) is None
 
-    def test_eviction_removes_old_entries(self, monkeypatch):
-        """Entries older than _EVICT_AGE are cleaned up."""
+    def test_persistence_survives_reinstantiation(self, tmp_path):
+        """Restarting the bot must not drop conversation history."""
+        store1 = ConversationStore()
+        store1.store_user(10, "hi")
+        store1.store_assistant(11, "hey", parent_id=10, model="gemma-4-31b")
+        store1.store_user(12, "more", parent_id=11)
+
+        # Simulate bot restart by creating a fresh store — it should
+        # replay the JSONL on disk and produce identical chain history.
+        store2 = ConversationStore()
+        messages = store2.build_messages(12)
+        assert len(messages) == 4
+        assert messages[1]["content"] == "hi"
+        assert messages[2]["content"] == "hey"
+        assert messages[3]["content"] == "more"
+        assert store2.get_chain_model(12) == "gemma-4-31b"
+
+    def test_persistence_file_is_append_only_jsonl(self, tmp_path):
+        """Each write appends one line to conversations.jsonl."""
         store = ConversationStore()
+        store.store_user(10, "one")
+        store.store_assistant(11, "two", parent_id=10)
 
-        # Insert an entry with old timestamp
-        store.store_user(10, "old")
-        store._entries[10].timestamp = time.time() - 7200  # 2 hours ago
+        path = tmp_path / "conversations.jsonl"
+        lines = path.read_text(encoding="utf-8").strip().splitlines()
+        assert len(lines) == 2
+        first = json.loads(lines[0])
+        assert first["role"] == "user"
+        assert first["message_id"] == 10
 
-        # Insert a fresh entry
-        store.store_user(20, "new")
+    def test_archive_drops_old_entries_fifo(self, tmp_path):
+        """archive_old_entries drops records beyond the retention window."""
+        store = ConversationStore()
+        now = time.time()
 
-        # Force eviction by resetting interval
-        store._last_evict = 0
-        store._maybe_evict()
+        # 91 days old — should be dropped
+        store.store_user(10, "ancient")
+        store._entries[10].timestamp = now - 91 * 86400
 
+        # recent — should survive
+        store.store_user(20, "recent")
+
+        # Rewrite the underlying JSONL to reflect the mutated timestamps.
+        path = tmp_path / "conversations.jsonl"
+        path.write_text(
+            json.dumps(
+                {
+                    "ts": now - 91 * 86400,
+                    "message_id": 10,
+                    "role": "user",
+                    "content": "ancient",
+                    "parent_id": None,
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+            + json.dumps(
+                {
+                    "ts": now,
+                    "message_id": 20,
+                    "role": "user",
+                    "content": "recent",
+                    "parent_id": None,
+                },
+                ensure_ascii=False,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        report = store.archive_old_entries(now=now)
+        assert report == {"dropped": 1, "kept": 1}
+
+        # In-memory state and on-disk file both trimmed.
         assert 10 not in store._entries
         assert 20 in store._entries
+        lines = path.read_text(encoding="utf-8").strip().splitlines()
+        assert len(lines) == 1
+        assert json.loads(lines[0])["message_id"] == 20
+
+    def test_archive_noop_when_all_recent(self):
+        store = ConversationStore()
+        store.store_user(10, "fresh")
+        report = store.archive_old_entries()
+        assert report["dropped"] == 0
+        assert 10 in store._entries
+
+    def test_has_reflects_store_state(self):
+        store = ConversationStore()
+        assert not store.has(42)
+        store.store_user(42, "hello")
+        assert store.has(42)
