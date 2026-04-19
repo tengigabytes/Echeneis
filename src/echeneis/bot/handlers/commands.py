@@ -10,6 +10,7 @@ import time
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from echeneis.bot.conversation import ConversationStore
 from echeneis.bot.format_math import toggle_raw
 from echeneis.bot.gateway_client import GatewayClient, GatewayError
 from echeneis.bot.handlers.messages import (
@@ -175,6 +176,7 @@ async def think_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
 
     gateway: GatewayClient = context.bot_data["gateway"]
+    convo: ConversationStore = context.bot_data["conversation"]
     sent = await update.message.reply_text("思考中…")
 
     try:
@@ -185,6 +187,17 @@ async def think_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             max_tokens=_DEFAULT_MAX_TOKENS,
         )
         elapsed = time.perf_counter() - started
+        # Persist the turn so a user who later replies to this response
+        # continues the chain (and session-stickies to the same model).
+        convo.store_user(update.message.message_id, text, parent_id=None)
+        assistant_text = result["choices"][0]["message"]["content"]
+        routed_model = result.get("_echeneis_model")
+        convo.store_assistant(
+            sent.message_id,
+            assistant_text,
+            parent_id=update.message.message_id,
+            model=routed_model,
+        )
         record_from_result(update.effective_user.id, result, task="think")
         reply = _format_reply(result, elapsed, user_id=update.effective_user.id)
         await _send_reply(sent, reply)
@@ -202,6 +215,7 @@ async def fast_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     gateway: GatewayClient = context.bot_data["gateway"]
+    convo: ConversationStore = context.bot_data["conversation"]
     sent = await update.message.reply_text("處理中…")
 
     try:
@@ -212,6 +226,15 @@ async def fast_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             max_tokens=_DEFAULT_MAX_TOKENS,
         )
         elapsed = time.perf_counter() - started
+        convo.store_user(update.message.message_id, text, parent_id=None)
+        assistant_text = result["choices"][0]["message"]["content"]
+        routed_model = result.get("_echeneis_model")
+        convo.store_assistant(
+            sent.message_id,
+            assistant_text,
+            parent_id=update.message.message_id,
+            model=routed_model,
+        )
         record_from_result(update.effective_user.id, result, task="fast")
         reply = _format_reply(result, elapsed, user_id=update.effective_user.id)
         await _send_reply(sent, reply)
@@ -267,6 +290,7 @@ async def use_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     text = " ".join(args[1:])
 
     gateway: GatewayClient = context.bot_data["gateway"]
+    convo: ConversationStore = context.bot_data["conversation"]
     sent = await update.message.reply_text("處理中…")
 
     try:
@@ -277,6 +301,17 @@ async def use_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             max_tokens=_DEFAULT_MAX_TOKENS,
         )
         elapsed = time.perf_counter() - started
+        # Persist so replying to this message continues the chain and
+        # session-stickies to the same model the admin explicitly chose.
+        convo.store_user(update.message.message_id, text, parent_id=None)
+        assistant_text = result["choices"][0]["message"]["content"]
+        routed_model = result.get("_echeneis_model") or model_name
+        convo.store_assistant(
+            sent.message_id,
+            assistant_text,
+            parent_id=update.message.message_id,
+            model=routed_model,
+        )
         record_from_result(update.effective_user.id, result, task="use")
         reply = _format_reply(result, elapsed, user_id=update.effective_user.id)
         await _send_reply(sent, reply)

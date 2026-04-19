@@ -72,6 +72,31 @@ def test_skips_reply_with_no_text_or_caption():
     assert not store.has(42)
 
 
+def test_reconstructs_model_from_reply_header():
+    """Bracketed header like '[gemma-4-31b · 34 tok/s · 14.5s]' exposes model."""
+    store = ConversationStore()
+    header_text = "[groq-llama-4-scout · 402 tok/s · 1.4s]\n\nAC注入法是一種..."
+    _ensure_reply_parent_recovered(store, _reply_message(950, header_text))
+    assert store._entries[950].model == "groq-llama-4-scout"
+
+
+def test_reconstructs_without_model_when_header_absent():
+    store = ConversationStore()
+    _ensure_reply_parent_recovered(
+        store, _reply_message(950, "plain text without bracketed header")
+    )
+    assert store._entries[950].model is None
+
+
+def test_session_sticky_follows_recovered_model():
+    """The original bug: reply to a /use response should stay on that model."""
+    store = ConversationStore()
+    header = "[groq-llama-4-scout · 402 tok/s · 1.4s]\n\nMCP explanation..."
+    _ensure_reply_parent_recovered(store, _reply_message(950, header))
+    store.store_user(951, "我是說鋁基板PCB", parent_id=950)
+    assert store.get_chain_model(951) == "groq-llama-4-scout"
+
+
 def test_build_messages_sees_recovered_parent():
     """After recovery, build_messages picks up the synthesised assistant turn."""
     store = ConversationStore()

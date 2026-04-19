@@ -12,7 +12,7 @@ from typing import Any
 from telegram import Document, Message, PhotoSize, Update
 from telegram.ext import ContextTypes
 
-from echeneis.bot.conversation import ConversationStore
+from echeneis.bot.conversation import ConversationStore, extract_model_from_reply
 from echeneis.bot.format_math import is_raw, to_unicode
 from echeneis.bot.gateway_client import GatewayClient, GatewayError
 from echeneis.bot.handlers.requests import prompt_unregistered
@@ -274,7 +274,10 @@ def _format_reply(
     content = result["choices"][0]["message"]["content"]
     if not (user_id is not None and is_raw(user_id)):
         content = to_unicode(content)
-    model = result.get("model", "unknown")
+    # Prefer the short Echeneis-side name so reply-metadata recovery
+    # round-trips cleanly (the session-sticky chain_model also stores
+    # the short name).
+    model = result.get("_echeneis_model") or result.get("model", "unknown")
     finish = result["choices"][0].get("finish_reason", "")
 
     parts = [model]
@@ -360,8 +363,11 @@ def _ensure_reply_parent_recovered(convo: ConversationStore, message: Message) -
     text = getattr(reply, "text", None) or getattr(reply, "caption", None)
     if not isinstance(text, str) or not text:
         return
+    # Recover the model from our bracketed header if present — lets
+    # session sticky still work across a store gap.
+    model = extract_model_from_reply(text)
     # No upstream parent known; chain starts here.
-    convo.store_assistant(reply_id, text, parent_id=0, model=None)
+    convo.store_assistant(reply_id, text, parent_id=0, model=model)
 
 
 def _get_extension(filename: str) -> str:

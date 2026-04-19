@@ -21,6 +21,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import tempfile
 import threading
 import time
@@ -63,6 +64,26 @@ class _Entry:
 def _default_log_path() -> Path:
     state_dir = os.environ.get("ECHENEIS_STATE_DIR", "/app/state")
     return Path(state_dir) / "conversations.jsonl"
+
+
+# Every _format_reply output starts with "[<model>\u00a0·\u00a0..." so the
+# model name is the first token before any middle dot or closing bracket.
+# Used by the reply-metadata fallback to recover the model a previous
+# turn used, enabling session sticky across store gaps and restarts.
+_HEADER_MODEL_RE = re.compile(r"^\[([^\s·\]]+)")
+
+
+def extract_model_from_reply(text: str) -> str | None:
+    """Parse the model name from a bot reply's first-line header.
+
+    Returns None if the text doesn't start with a bracketed header —
+    for example when the message came from a different source, was
+    edited, or is from a plain-text fallback path.
+    """
+    if not isinstance(text, str) or not text:
+        return None
+    m = _HEADER_MODEL_RE.match(text.strip())
+    return m.group(1) if m else None
 
 
 class ConversationStore:
