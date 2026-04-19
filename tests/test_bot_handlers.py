@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from echeneis.bot.conversation import ConversationStore
+from echeneis.bot.conversation import ConversationManager
 from echeneis.bot.handlers.commands import (
     fast_command,
     help_command,
@@ -20,7 +20,7 @@ def _make_context(gateway_mock: AsyncMock) -> MagicMock:
     ctx = MagicMock()
     ctx.bot_data = {
         "gateway": gateway_mock,
-        "conversation": ConversationStore(),
+        "conversation": ConversationManager(),
     }
     ctx.args = []
     return ctx
@@ -34,6 +34,7 @@ def _make_authorized_update(
     """Create a mock authorized update with a text message."""
     update = MagicMock()
     update.effective_user.id = 12345
+    update.effective_chat.id = 12345
     update.message.text = text
     update.message.caption = None
     update.message.message_id = message_id

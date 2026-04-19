@@ -4,10 +4,16 @@ Tracks message chains via Telegram's reply-to mechanism. Replying to a
 bot message continues the conversation; sending a new (non-reply)
 message starts a fresh one.
 
-Persistence: every write append-logs to ``state/conversations.jsonl``.
-On startup the whole file is replayed into memory, so a bot rebuild or
-restart doesn't lose the last 90 days of chat context. A nightly cron
-(``deploy/archive-conversations.sh``) compacts the file by dropping
+Per-chat isolation: each Telegram chat (DM or group) has its own
+JSONL file under ``state/conversations/<chat_id>.jsonl``. Telegram
+message_ids are per-chat so without this split two users' chains
+would collide. ``ConversationManager`` lazy-creates one
+``ConversationStore`` per chat and mediates archive + migration.
+
+Persistence: every write append-logs to that chat's file. On bot
+restart each chat's store replays its own file on first access, so
+history survives rebuilds. A nightly cron
+(``deploy/archive-conversations.sh``) iterates all chats and drops
 entries older than 90 days (FIFO).
 
 When a user replies to a bot message the store doesn't know about
@@ -61,7 +67,13 @@ class _Entry:
     model: str | None = None  # short model name (assistant entries only)
 
 
-def _default_log_path() -> Path:
+def _conversations_dir() -> Path:
+    state_dir = os.environ.get("ECHENEIS_STATE_DIR", "/app/state")
+    return Path(state_dir) / "conversations"
+
+
+def _legacy_log_path() -> Path:
+    """Pre-split single-file path. Migrated on manager init if present."""
     state_dir = os.environ.get("ECHENEIS_STATE_DIR", "/app/state")
     return Path(state_dir) / "conversations.jsonl"
 
@@ -103,7 +115,12 @@ class ConversationStore:
     ) -> None:
         self._entries: dict[int, _Entry] = {}
         self._max_turns = max_turns
-        self._log_path = Path(log_path) if log_path else _default_log_path()
+        # Default path is a per-chat file under state/conversations/;
+        # callers without a chat context (tests, the legacy codepath)
+        # may pass their own path.
+        if log_path is None:
+            log_path = _conversations_dir() / "default.jsonl"
+        self._log_path = Path(log_path)
         self._io_lock = threading.Lock()
         self._load()
 
@@ -311,3 +328,97 @@ class ConversationStore:
             retention_secs,
         )
         return {"dropped": dropped, "kept": len(kept)}
+
+
+# ── ConversationManager ──────────────────────────────────────────────
+
+
+class ConversationManager:
+    """Holds one ``ConversationStore`` per Telegram chat id.
+
+    Stores are lazy-created on first access. Thread-safe for handlers
+    that might land on different chat ids concurrently. Also migrates
+    the pre-split single-file log on first instantiation — old entries
+    land in ``conversations/_legacy.jsonl`` and stay queryable if ever
+    needed, but new writes go to per-chat files.
+    """
+
+    def __init__(self, max_turns: int = DEFAULT_MAX_TURNS) -> None:
+        self._max_turns = max_turns
+        self._stores: dict[int, ConversationStore] = {}
+        self._lock = threading.Lock()
+        self._dir = _conversations_dir()
+        self._migrate_legacy()
+
+    def _migrate_legacy(self) -> None:
+        """Move the old monolithic conversations.jsonl aside on startup."""
+        legacy = _legacy_log_path()
+        if not legacy.exists():
+            return
+        try:
+            self._dir.mkdir(parents=True, exist_ok=True)
+            target = self._dir / "_legacy.jsonl"
+            # If a _legacy already exists (prior migration), concat.
+            if target.exists():
+                with target.open("ab") as dst, legacy.open("rb") as src:
+                    dst.write(src.read())
+                legacy.unlink()
+            else:
+                legacy.rename(target)
+            logger.info(
+                "Migrated legacy conversations.jsonl -> %s (read-only snapshot)",
+                target,
+            )
+        except OSError as exc:
+            logger.warning("Failed to migrate legacy conversations.jsonl: %s", exc)
+
+    def for_chat(self, chat_id: int) -> ConversationStore:
+        """Return the store for ``chat_id``, creating it on first access."""
+        with self._lock:
+            store = self._stores.get(chat_id)
+            if store is None:
+                path = self._dir / f"{chat_id}.jsonl"
+                store = ConversationStore(max_turns=self._max_turns, log_path=path)
+                self._stores[chat_id] = store
+            return store
+
+    def archive_all(
+        self, retention_secs: int = RETENTION_SECS, *, now: float | None = None
+    ) -> dict[str, Any]:
+        """Run archive_old_entries on every chat's store.
+
+        Iterates actual files under ``conversations/`` so chats whose
+        store hasn't been touched since bot start also get cleaned.
+        Returns ``{"chats": N, "dropped": total, "kept": total}``.
+        """
+        now = now if now is not None else time.time()
+        total_dropped = 0
+        total_kept = 0
+        chats_seen = 0
+        if not self._dir.exists():
+            return {"chats": 0, "dropped": 0, "kept": 0}
+
+        for path in self._dir.glob("*.jsonl"):
+            if path.name == "_legacy.jsonl":
+                continue  # read-only archive, not a live chat
+            try:
+                chat_id = int(path.stem)
+            except ValueError:
+                continue
+            chats_seen += 1
+            store = self.for_chat(chat_id)
+            report = store.archive_old_entries(retention_secs, now=now)
+            total_dropped += report["dropped"]
+            total_kept += report["kept"]
+
+        logger.info(
+            "Conversation archive across %d chat(s): dropped=%d kept=%d",
+            chats_seen,
+            total_dropped,
+            total_kept,
+        )
+        return {
+            "chats": chats_seen,
+            "dropped": total_dropped,
+            "kept": total_kept,
+        }

@@ -167,7 +167,7 @@ class TestConversationStore:
         store.store_user(10, "one")
         store.store_assistant(11, "two", parent_id=10)
 
-        path = tmp_path / "conversations.jsonl"
+        path = tmp_path / "conversations" / "default.jsonl"
         lines = path.read_text(encoding="utf-8").strip().splitlines()
         assert len(lines) == 2
         first = json.loads(lines[0])
@@ -187,7 +187,7 @@ class TestConversationStore:
         store.store_user(20, "recent")
 
         # Rewrite the underlying JSONL to reflect the mutated timestamps.
-        path = tmp_path / "conversations.jsonl"
+        path = tmp_path / "conversations" / "default.jsonl"
         path.write_text(
             json.dumps(
                 {

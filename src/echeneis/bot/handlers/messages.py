@@ -12,7 +12,10 @@ from typing import Any
 from telegram import Document, Message, PhotoSize, Update
 from telegram.ext import ContextTypes
 
-from echeneis.bot.conversation import ConversationStore, extract_model_from_reply
+from echeneis.bot.conversation import (
+    ConversationStore,
+    extract_model_from_reply,
+)
 from echeneis.bot.format_math import is_raw, to_unicode
 from echeneis.bot.gateway_client import GatewayClient, GatewayError
 from echeneis.bot.handlers.requests import prompt_unregistered
@@ -79,7 +82,9 @@ async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     gateway: GatewayClient = context.bot_data["gateway"]
-    convo: ConversationStore = context.bot_data["conversation"]
+    convo: ConversationStore = context.bot_data["conversation"].for_chat(
+        update.effective_chat.id
+    )
     _ensure_reply_parent_recovered(convo, update.message)
     parent_id = _get_reply_parent_id(update.message)
 
@@ -130,7 +135,9 @@ async def photo_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     caption = update.message.caption or "請描述這張圖片。"
 
     gateway: GatewayClient = context.bot_data["gateway"]
-    convo: ConversationStore = context.bot_data["conversation"]
+    convo: ConversationStore = context.bot_data["conversation"].for_chat(
+        update.effective_chat.id
+    )
     _ensure_reply_parent_recovered(convo, update.message)
     parent_id = _get_reply_parent_id(update.message)
 
@@ -207,7 +214,9 @@ async def document_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         return
 
     gateway: GatewayClient = context.bot_data["gateway"]
-    convo: ConversationStore = context.bot_data["conversation"]
+    convo: ConversationStore = context.bot_data["conversation"].for_chat(
+        update.effective_chat.id
+    )
     _ensure_reply_parent_recovered(convo, update.message)
     parent_id = _get_reply_parent_id(update.message)
 

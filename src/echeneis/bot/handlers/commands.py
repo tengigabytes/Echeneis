@@ -176,7 +176,9 @@ async def think_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
 
     gateway: GatewayClient = context.bot_data["gateway"]
-    convo: ConversationStore = context.bot_data["conversation"]
+    convo: ConversationStore = context.bot_data["conversation"].for_chat(
+        update.effective_chat.id
+    )
     sent = await update.message.reply_text("思考中…")
 
     try:
@@ -215,7 +217,9 @@ async def fast_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         return
 
     gateway: GatewayClient = context.bot_data["gateway"]
-    convo: ConversationStore = context.bot_data["conversation"]
+    convo: ConversationStore = context.bot_data["conversation"].for_chat(
+        update.effective_chat.id
+    )
     sent = await update.message.reply_text("處理中…")
 
     try:
@@ -290,7 +294,9 @@ async def use_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     text = " ".join(args[1:])
 
     gateway: GatewayClient = context.bot_data["gateway"]
-    convo: ConversationStore = context.bot_data["conversation"]
+    convo: ConversationStore = context.bot_data["conversation"].for_chat(
+        update.effective_chat.id
+    )
     sent = await update.message.reply_text("處理中…")
 
     try:

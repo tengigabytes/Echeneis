@@ -11,7 +11,7 @@ log() { echo "$(date -Is) [convo] $*" >> "${LOG_FILE}"; }
 cd "${INSTALL_DIR}"
 
 report=$(sudo docker compose exec -T bot \
-    python -c "from echeneis.bot.conversation import ConversationStore; import json; print(json.dumps(ConversationStore().archive_old_entries()))" \
+    python -c "from echeneis.bot.conversation import ConversationManager; import json; print(json.dumps(ConversationManager().archive_all()))" \
     2>&1) || {
     log "ERROR: archive invocation failed: ${report}"
     exit 1

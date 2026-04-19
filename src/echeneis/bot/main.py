@@ -18,7 +18,7 @@ from telegram.ext import (
     filters,
 )
 
-from echeneis.bot.conversation import ConversationStore
+from echeneis.bot.conversation import ConversationManager
 from echeneis.bot.gateway_client import GatewayClient
 from echeneis.bot.handlers.admin_users import (
     adduser_command,
@@ -177,7 +177,7 @@ def main() -> None:
 
     # Store shared components in bot_data for access in handlers
     app.bot_data["gateway"] = gateway
-    app.bot_data["conversation"] = ConversationStore()
+    app.bot_data["conversation"] = ConversationManager()
     app.bot_data["monitor"] = SystemMonitor(gateway)
 
     # Register command handlers
