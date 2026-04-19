@@ -16,7 +16,6 @@ from echeneis.bot.handlers.admin_users import (
 )
 from echeneis.bot.user_store import Role, get_store, reset_store
 
-
 ADMIN_ID = 100
 GUEST_ID = 200
 STRANGER_ID = 999
@@ -33,7 +32,9 @@ def _fresh_store(tmp_path, monkeypatch):
     reset_store()
 
 
-def _mk_update(user_id: int, args: list[str] | None = None) -> tuple[MagicMock, MagicMock]:
+def _mk_update(
+    user_id: int, args: list[str] | None = None
+) -> tuple[MagicMock, MagicMock]:
     update = MagicMock()
     update.effective_user.id = user_id
     update.message.reply_text = AsyncMock()

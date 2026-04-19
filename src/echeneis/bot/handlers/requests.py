@@ -63,9 +63,7 @@ async def prompt_unregistered(
     store = get_request_store()
     existing = store.get(user.id)
     if existing and existing.get("status") == "pending":
-        await update.message.reply_text(
-            "你的申請已送出，等待管理員審核中。"
-        )
+        await update.message.reply_text("你的申請已送出，等待管理員審核中。")
         return
 
     keyboard = InlineKeyboardMarkup(
@@ -85,9 +83,7 @@ async def prompt_unregistered(
 
 
 @public
-async def request_command(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
+async def request_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /request [reason] — open a registration request."""
     user = update.effective_user
     if user is None or update.message is None:
@@ -111,9 +107,7 @@ async def request_command(
     await _create_and_notify(update, context, user, reason)
 
 
-async def request_callback(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
+async def request_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle inline keyboard button presses for request flow."""
     query = update.callback_query
     if query is None:
@@ -171,11 +165,11 @@ async def _create_and_notify(
 
     admins = get_store().list_admins()
     if not admins:
-        logger.error("No admins configured; request from %s cannot be approved", user.id)
+        logger.error(
+            "No admins configured; request from %s cannot be approved", user.id
+        )
         if update.message:
-            await update.message.reply_text(
-                "⚠️ 系統尚未設定管理員，無法處理申請。"
-            )
+            await update.message.reply_text("⚠️ 系統尚未設定管理員，無法處理申請。")
         return
 
     # Notify each admin with an inline keyboard.
@@ -287,9 +281,7 @@ async def _handle_decision(
             + _format_admin_notification(record)
         )
         user_msg = (
-            "🎉 你的申請已通過！\n"
-            "現在可以使用 Bot 的全部功能。\n"
-            "輸入 /help 查看指令。"
+            "🎉 你的申請已通過！\n現在可以使用 Bot 的全部功能。\n輸入 /help 查看指令。"
         )
     else:
         decided = rstore.deny(target_id, admin.id)
@@ -319,7 +311,9 @@ async def _handle_decision(
                 reply_markup=None,
             )
         except (BadRequest, Forbidden) as exc:
-            logger.debug("Could not edit admin %s msg %s: %s", admin_id_int, msg_id, exc)
+            logger.debug(
+                "Could not edit admin %s msg %s: %s", admin_id_int, msg_id, exc
+            )
 
     # Notify the requester.
     try:
@@ -339,9 +333,7 @@ async def _handle_decision(
 
 
 @require_admin
-async def pending_command(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
+async def pending_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /pending — list open requests."""
     pending = get_request_store().list_pending()
     if not pending:

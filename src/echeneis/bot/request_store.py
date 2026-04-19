@@ -149,9 +149,7 @@ class RequestStore:
             remaining = self._cooldown_remaining(rec)
             if remaining > 0:
                 hours = remaining // 3600
-                return False, (
-                    f"你的申請曾被拒絕，請於 {hours} 小時後再試。"
-                )
+                return False, (f"你的申請曾被拒絕，請於 {hours} 小時後再試。")
             return True, ""
         return True, ""
 

@@ -65,9 +65,7 @@ def require_admin(handler: Handler) -> Handler:
     """
 
     @functools.wraps(handler)
-    async def wrapper(
-        update: Update, context: ContextTypes.DEFAULT_TYPE
-    ) -> Any:
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Any:
         uid = _user_id(update)
         if uid is None or not get_store().is_admin(uid):
             logger.debug(
@@ -85,9 +83,7 @@ def require_user(handler: Handler) -> Handler:
     """Allow admins and non-banned guests; silently drop others."""
 
     @functools.wraps(handler)
-    async def wrapper(
-        update: Update, context: ContextTypes.DEFAULT_TYPE
-    ) -> Any:
+    async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Any:
         uid = _user_id(update)
         if uid is None or not get_store().is_authorized(uid):
             logger.debug(

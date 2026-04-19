@@ -14,8 +14,8 @@ from telegram.ext import ContextTypes
 
 from echeneis.bot.conversation import ConversationStore
 from echeneis.bot.gateway_client import GatewayClient, GatewayError
-from echeneis.bot.middleware import is_authorized
 from echeneis.bot.handlers.requests import prompt_unregistered
+from echeneis.bot.middleware import is_authorized
 
 logger = logging.getLogger(__name__)
 

@@ -18,7 +18,6 @@ from echeneis.bot.request_store import (
 )
 from echeneis.bot.user_store import Role, get_store, reset_store
 
-
 ADMIN_ID = 100
 STRANGER_ID = 999
 
@@ -178,7 +177,8 @@ async def test_approve_callback_adds_guest_and_notifies():
     # Requester informed.
     ctx.bot.send_message.assert_called()
     requester_call = [
-        c for c in ctx.bot.send_message.call_args_list
+        c
+        for c in ctx.bot.send_message.call_args_list
         if c.kwargs.get("chat_id") == STRANGER_ID
     ]
     assert len(requester_call) == 1
@@ -196,7 +196,8 @@ async def test_deny_callback_denies_and_notifies():
     assert get_store().role(STRANGER_ID) is Role.UNREGISTERED
 
     requester_call = [
-        c for c in ctx.bot.send_message.call_args_list
+        c
+        for c in ctx.bot.send_message.call_args_list
         if c.kwargs.get("chat_id") == STRANGER_ID
     ]
     assert len(requester_call) == 1

@@ -25,9 +25,7 @@ logger = logging.getLogger(__name__)
 # ── Role-aware help text ──────────────────────────────────────────────
 
 _HELP_COMMON = (
-    "/start — 開始使用\n"
-    "/help — 顯示此說明\n"
-    "/whoami — 查看你的 Telegram ID 與權限\n"
+    "/start — 開始使用\n/help — 顯示此說明\n/whoami — 查看你的 Telegram ID 與權限\n"
 )
 
 _HELP_USER = (

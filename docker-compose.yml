@@ -1,6 +1,9 @@
 services:
   gateway:
-    build: .
+    build:
+      context: .
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
     ports:
       - "4000:4000"
     volumes:
@@ -26,7 +29,10 @@ services:
       start_period: 10s
 
   bot:
-    build: .
+    build:
+      context: .
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
     command: ["python", "-m", "echeneis.bot.main"]
     env_file:
       - .env

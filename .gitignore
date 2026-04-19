@@ -42,3 +42,8 @@ docker-compose.override.yml
 
 # Benchmark results
 benchmarks/results/
+
+# Claude Code local settings
+.claude/
+# Windows bash crash dumps
+*.stackdump

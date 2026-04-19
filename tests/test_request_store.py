@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import json
-
 import pytest
 
 from echeneis.bot.request_store import (
@@ -81,7 +79,6 @@ def test_deny_enforces_cooldown(tmp_path, monkeypatch):
     from datetime import datetime, timedelta, timezone
 
     stale = datetime.now(timezone.utc) - timedelta(seconds=DENY_COOLDOWN_SECS + 1)
-    rec = store.get(300)
     # Mutate via internal dict (test-only shortcut).
     store._data[300]["decided_at"] = stale.isoformat()
     allowed2, _ = store.can_submit(300)

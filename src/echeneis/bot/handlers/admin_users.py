@@ -51,8 +51,7 @@ async def adduser_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     args = context.args or []
     if not args:
         await update.message.reply_text(
-            "用法：/adduser <user_id> [name]\n"
-            "例如：/adduser 123456789 Alice"
+            "用法：/adduser <user_id> [name]\n例如：/adduser 123456789 Alice"
         )
         return
 
@@ -114,14 +113,14 @@ async def removeuser_command(
         return
 
     admin_id = update.effective_user.id if update.effective_user else 0
-    await update.message.reply_text(f"✅ 已移除 guest：<code>{uid}</code>", parse_mode="HTML")
+    await update.message.reply_text(
+        f"✅ 已移除 guest：<code>{uid}</code>", parse_mode="HTML"
+    )
     logger.info("Admin %s removed guest %s", admin_id, uid)
 
 
 @require_admin
-async def listusers_command(
-    update: Update, context: ContextTypes.DEFAULT_TYPE
-) -> None:
+async def listusers_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /listusers — show all admins and guests."""
     store = get_store()
     admins = store.list_admins()
@@ -140,9 +139,7 @@ async def listusers_command(
             banned = "🚫 " if record.get("banned") else ""
             name = record.get("name") or "—"
             added = _fmt_datetime(record.get("added_at", ""))
-            lines.append(
-                f"  {banned}<code>{uid}</code>  {name}  · 新增於 {added}"
-            )
+            lines.append(f"  {banned}<code>{uid}</code>  {name}  · 新增於 {added}")
     else:
         lines.append("  （無）")
 
@@ -172,7 +169,9 @@ async def ban_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         return
 
     admin_id = update.effective_user.id if update.effective_user else 0
-    await update.message.reply_text(f"🚫 已停用 guest：<code>{uid}</code>", parse_mode="HTML")
+    await update.message.reply_text(
+        f"🚫 已停用 guest：<code>{uid}</code>", parse_mode="HTML"
+    )
     logger.info("Admin %s banned guest %s", admin_id, uid)
 
 
@@ -195,7 +194,9 @@ async def unban_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         return
 
     admin_id = update.effective_user.id if update.effective_user else 0
-    await update.message.reply_text(f"✅ 已恢復 guest：<code>{uid}</code>", parse_mode="HTML")
+    await update.message.reply_text(
+        f"✅ 已恢復 guest：<code>{uid}</code>", parse_mode="HTML"
+    )
     logger.info("Admin %s unbanned guest %s", admin_id, uid)
 
 
