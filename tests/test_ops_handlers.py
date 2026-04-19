@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -130,19 +131,78 @@ async def test_logs_rejects_bad_n():
     assert "用法" in text
 
 
-# ── /health ───────────────────────────────────────────────────────────
+# ── /health (active probe) ───────────────────────────────────────────
 
 
 @pytest.mark.asyncio
-async def test_health_reports_providers():
+async def test_health_probes_all_available_models():
+    from echeneis.bot.gateway_client import GatewayError
+
     update, ctx = _mk_update(ADMIN_ID)
     gateway = MagicMock()
-    gateway.health = AsyncMock(
+    gateway.models = AsyncMock(
         return_value={
-            "providers": {
-                "gemma-4-31b": {"available": True, "circuit": "closed"},
-                "cerebras-llama-8b": {"available": False, "circuit": "open"},
-            }
+            "models": [
+                {"name": "ok-model", "available": True, "has_key": True},
+                {"name": "degraded-model", "available": True, "has_key": True},
+                {"name": "no-key-model", "available": True, "has_key": False},
+            ]
+        }
+    )
+
+    async def fake_chat(**kwargs):
+        model = kwargs.get("model")
+        if model == "ok-model":
+            return {"choices": [{"message": {"content": "ok"}}]}
+        if model == "degraded-model":
+            raise GatewayError(
+                "Model degraded-model failed: ... 'DEGRADED function ...'",
+                status_code=502,
+            )
+        raise AssertionError(f"unexpected probe target: {model}")
+
+    gateway.chat = AsyncMock(side_effect=fake_chat)
+    ctx.bot_data["gateway"] = gateway
+
+    await health_command(update, ctx)
+
+    # Only models with has_key were probed.
+    probed = {c.kwargs["model"] for c in gateway.chat.call_args_list}
+    assert probed == {"ok-model", "degraded-model"}
+
+    sent_msg = update.message.reply_text.return_value
+    final = sent_msg.edit_text.call_args[0][0]
+    assert "ok-model" in final
+    assert "degraded-model" in final
+    assert "DEGRADED" in final
+    assert "1 ok" in final
+    assert "1 degraded" in final
+
+
+@pytest.mark.asyncio
+async def test_health_handles_models_api_error():
+    from echeneis.bot.gateway_client import GatewayError
+
+    update, ctx = _mk_update(ADMIN_ID)
+    gateway = MagicMock()
+    gateway.models = AsyncMock(side_effect=GatewayError("boom"))
+    ctx.bot_data["gateway"] = gateway
+
+    await health_command(update, ctx)
+    sent_msg = update.message.reply_text.return_value
+    final = sent_msg.edit_text.call_args[0][0]
+    assert "boom" in final or "無法" in final
+
+
+@pytest.mark.asyncio
+async def test_health_empty_probe_list():
+    update, ctx = _mk_update(ADMIN_ID)
+    gateway = MagicMock()
+    gateway.models = AsyncMock(
+        return_value={
+            "models": [
+                {"name": "nope", "available": False, "has_key": True},
+            ]
         }
     )
     ctx.bot_data["gateway"] = gateway
@@ -150,25 +210,45 @@ async def test_health_reports_providers():
     await health_command(update, ctx)
     sent_msg = update.message.reply_text.return_value
     final = sent_msg.edit_text.call_args[0][0]
-    assert "gemma-4-31b" in final
-    assert "cerebras-llama-8b" in final
-    assert "1 up" in final
-    assert "1 down" in final
+    assert "沒有" in final
 
 
 @pytest.mark.asyncio
-async def test_health_handles_gateway_error():
+async def test_probe_model_classifies_statuses():
+    """Direct unit test of the classifier. Exercises each status branch."""
     from echeneis.bot.gateway_client import GatewayError
+    from echeneis.bot.handlers.ops import _probe_model
 
-    update, ctx = _mk_update(ADMIN_ID)
     gateway = MagicMock()
-    gateway.health = AsyncMock(side_effect=GatewayError("boom"))
-    ctx.bot_data["gateway"] = gateway
 
-    await health_command(update, ctx)
-    sent_msg = update.message.reply_text.return_value
-    final = sent_msg.edit_text.call_args[0][0]
-    assert "boom" in final or "無法" in final
+    # ok
+    gateway.chat = AsyncMock(return_value={"choices": []})
+    r = await _probe_model(gateway, "m1", timeout_s=5.0)
+    assert r["status"] == "ok"
+    assert "latency_ms" in r
+
+    # degraded
+    gateway.chat = AsyncMock(side_effect=GatewayError("... DEGRADED ...", 502))
+    r = await _probe_model(gateway, "m2", timeout_s=5.0)
+    assert r["status"] == "degraded"
+
+    # rate_limited
+    gateway.chat = AsyncMock(side_effect=GatewayError("rate-limited", 429))
+    r = await _probe_model(gateway, "m3", timeout_s=5.0)
+    assert r["status"] == "rate_limited"
+
+    # generic error
+    gateway.chat = AsyncMock(side_effect=GatewayError("something else", 500))
+    r = await _probe_model(gateway, "m4", timeout_s=5.0)
+    assert r["status"] == "error"
+
+    # timeout
+    async def _hang(**_):
+        await asyncio.sleep(10)
+
+    gateway.chat = AsyncMock(side_effect=_hang)
+    r = await _probe_model(gateway, "m5", timeout_s=0.05)
+    assert r["status"] == "timeout"
 
 
 # ── /reload ───────────────────────────────────────────────────────────

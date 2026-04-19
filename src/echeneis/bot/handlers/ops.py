@@ -12,7 +12,9 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
+import time
 from pathlib import Path
+from typing import Any
 
 from telegram import Update
 from telegram.error import BadRequest, Forbidden
@@ -143,40 +145,138 @@ def _escape_html(s: str) -> str:
 
 # ── /health ───────────────────────────────────────────────────────────
 
+_PROBE_TIMEOUT_S = 15.0
+_PROBE_PROMPT = "ok"  # minimal prompt to cap prompt_tokens
+_PROBE_MAX_TOKENS = 5
+
+
+async def _probe_model(
+    gateway: GatewayClient,
+    model_name: str,
+    timeout_s: float = _PROBE_TIMEOUT_S,
+) -> dict[str, Any]:
+    """Send a minimal request and classify the response.
+
+    Returns a dict with ``status`` in
+    ``{"ok", "degraded", "rate_limited", "timeout", "error"}`` and a
+    latency when the call actually reached a response.
+    """
+    start = time.perf_counter()
+    try:
+        await asyncio.wait_for(
+            gateway.chat(
+                messages=[{"role": "user", "content": _PROBE_PROMPT}],
+                model=model_name,
+                max_tokens=_PROBE_MAX_TOKENS,
+            ),
+            timeout=timeout_s,
+        )
+        return {
+            "model": model_name,
+            "status": "ok",
+            "latency_ms": int((time.perf_counter() - start) * 1000),
+        }
+    except asyncio.TimeoutError:
+        return {
+            "model": model_name,
+            "status": "timeout",
+            "latency_ms": int(timeout_s * 1000),
+        }
+    except GatewayError as exc:
+        msg = str(exc)
+        status = "error"
+        # NVIDIA returns 400 with literal 'DEGRADED' when a function is
+        # unhealthy on their side — surface that distinctly since it's
+        # not our fault and circuit breaker won't catch it.
+        if "DEGRADED" in msg:
+            status = "degraded"
+        elif exc.status_code == 429 or "rate" in msg.lower():
+            status = "rate_limited"
+        return {
+            "model": model_name,
+            "status": status,
+            "error": msg[:120],
+        }
+
 
 @require_admin
 async def health_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /health — pull live provider health from the gateway."""
+    """Handle /health — actively probe every available model."""
     gateway: GatewayClient = context.bot_data["gateway"]
-    sent = await update.message.reply_text("檢查中…")
+    sent = await update.message.reply_text("取得模型清單中…")
+
     try:
-        data = await gateway.health()
+        data = await gateway.models()
     except GatewayError as exc:
-        logger.error("Gateway /health call failed: %s", exc)
-        await sent.edit_text(f"❌ 無法取得健康狀態：{exc}")
+        logger.error("Gateway /models call failed: %s", exc)
+        await sent.edit_text(f"❌ 無法取得模型清單：{exc}")
         return
 
-    providers = data.get("providers", {})
-    if not providers:
-        await sent.edit_text("Gateway 回應但無 provider 資訊。")
+    targets = [
+        m["name"]
+        for m in data.get("models", [])
+        if m.get("available") and m.get("has_key")
+    ]
+    if not targets:
+        await sent.edit_text("沒有可探測的模型（都無 key 或不可用）。")
         return
 
-    lines = ["<b>Provider 健康狀態</b>\n"]
-    up = 0
-    down = 0
-    for name in sorted(providers):
-        status = providers[name]
-        circuit = status.get("circuit", "unknown")
-        available = status.get("available", False)
-        icon = "🟢" if available else "🔴"
-        if available:
-            up += 1
+    await sent.edit_text(f"🔍 Active probe 中… ({len(targets)} 個模型)")
+    started = time.perf_counter()
+    results = await asyncio.gather(
+        *(_probe_model(gateway, m) for m in targets),
+        return_exceptions=False,
+    )
+    total_secs = time.perf_counter() - started
+
+    counts = {"ok": 0, "degraded": 0, "rate_limited": 0, "timeout": 0, "error": 0}
+    for r in results:
+        counts[r["status"]] = counts.get(r["status"], 0) + 1
+
+    icons = {
+        "ok": "✅",
+        "degraded": "🟠",
+        "rate_limited": "🟡",
+        "timeout": "⏱",
+        "error": "❌",
+    }
+    name_w = min(30, max(len(r["model"]) for r in results))
+
+    # Sort: ok first (by latency), then non-ok grouped
+    def _sort_key(r: dict[str, Any]) -> tuple[int, int, str]:
+        order = {"ok": 0, "degraded": 1, "rate_limited": 2, "timeout": 3, "error": 4}
+        return (order.get(r["status"], 9), r.get("latency_ms", 9999), r["model"])
+
+    results.sort(key=_sort_key)
+
+    lines = []
+    for r in results:
+        icon = icons.get(r["status"], "?")
+        label = r["model"][:name_w].ljust(name_w)
+        if r["status"] == "ok":
+            lines.append(f"{icon} {label}  {r['latency_ms']:>5}ms")
+        elif r["status"] == "timeout":
+            lines.append(f"{icon} {label}  timeout")
+        elif r["status"] == "degraded":
+            lines.append(f"{icon} {label}  DEGRADED")
+        elif r["status"] == "rate_limited":
+            lines.append(f"{icon} {label}  rate limited")
         else:
-            down += 1
-        lines.append(f"{icon} <code>{name}</code>  ({circuit})")
+            snippet = r.get("error", "")[:50]
+            lines.append(f"{icon} {label}  {snippet}")
 
-    lines.append(f"\n合計：{up} up / {down} down")
-    await sent.edit_text("\n".join(lines), parse_mode="HTML")
+    summary_parts = [f"{counts['ok']} ok"]
+    for k in ("degraded", "rate_limited", "timeout", "error"):
+        if counts[k]:
+            summary_parts.append(f"{counts[k]} {k.replace('_', ' ')}")
+
+    header = (
+        f"🔍 <b>Active Probe</b> ({len(results)} models, {total_secs:.1f}s)\n"
+        f"合計：{' / '.join(summary_parts)}"
+    )
+    body = "<pre>" + "\n".join(lines) + "</pre>"
+
+    await sent.edit_text(header + "\n" + body, parse_mode="HTML")
 
 
 # ── /reload ───────────────────────────────────────────────────────────
