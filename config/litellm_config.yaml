@@ -112,9 +112,25 @@ model_list:
       rpm: 40
       rpd: 0
 
-  - model_name: nvidia-gemma-4-31b
+  - model_name: nvidia-gemma-3-27b
     litellm_params:
-      model: nvidia_nim/google/gemma-4-31b-it
+      model: nvidia_nim/google/gemma-3-27b-it
+      api_key: os.environ/NVIDIA_API_KEY
+    rate_limits:
+      rpm: 40
+      rpd: 0
+
+  - model_name: nvidia-mistral-large-3
+    litellm_params:
+      model: nvidia_nim/mistralai/mistral-large-3-675b-instruct-2512
+      api_key: os.environ/NVIDIA_API_KEY
+    rate_limits:
+      rpm: 40
+      rpd: 0
+
+  - model_name: nvidia-mistral-nemotron
+    litellm_params:
+      model: nvidia_nim/mistralai/mistral-nemotron
       api_key: os.environ/NVIDIA_API_KEY
     rate_limits:
       rpm: 40
