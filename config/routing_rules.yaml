@@ -41,6 +41,7 @@ tiers:
         - nvidia-gemma-3-27b
       general_qa:
         - cerebras-llama-8b
+        - nvidia-llama-4-maverick     # 17B×128E MoE, ~0.4s
         - nvidia-mistral-nemotron     # NVIDIA-tuned Mistral, fast + diverse
         - nvidia-nemotron-super-49b
         - groq-llama-70b

@@ -136,6 +136,14 @@ model_list:
       rpm: 40
       rpd: 0
 
+  - model_name: nvidia-llama-4-maverick
+    litellm_params:
+      model: nvidia_nim/meta/llama-4-maverick-17b-128e-instruct
+      api_key: os.environ/NVIDIA_API_KEY
+    rate_limits:
+      rpm: 40
+      rpd: 0
+
   # --- Gemini API ---
   - model_name: gemini-2.5-flash
     litellm_params:
