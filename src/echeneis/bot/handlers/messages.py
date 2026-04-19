@@ -13,6 +13,7 @@ from telegram import Document, Message, PhotoSize, Update
 from telegram.ext import ContextTypes
 
 from echeneis.bot.conversation import ConversationStore
+from echeneis.bot.format_math import is_raw, to_unicode
 from echeneis.bot.gateway_client import GatewayClient, GatewayError
 from echeneis.bot.handlers.requests import prompt_unregistered
 from echeneis.bot.middleware import is_authorized
@@ -110,7 +111,7 @@ async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
         record_from_result(update.effective_user.id, result, task="chat")
 
-        reply = _format_reply(result, elapsed)
+        reply = _format_reply(result, elapsed, user_id=update.effective_user.id)
         await _send_reply(sent, reply)
     except GatewayError as e:
         logger.error("Gateway error for text message: %s", e)
@@ -168,7 +169,7 @@ async def photo_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         )
         record_from_result(update.effective_user.id, result, task="vision")
 
-        reply = _format_reply(result, elapsed)
+        reply = _format_reply(result, elapsed, user_id=update.effective_user.id)
         await _send_reply(sent, reply)
     except GatewayError as e:
         logger.error("Gateway error for photo: %s", e)
@@ -243,7 +244,7 @@ async def document_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         )
         record_from_result(update.effective_user.id, result, task="document")
 
-        reply = _format_reply(result, elapsed)
+        reply = _format_reply(result, elapsed, user_id=update.effective_user.id)
         await _send_reply(sent, reply)
     except GatewayError as e:
         logger.error("Gateway error for document: %s", e)
@@ -253,15 +254,23 @@ async def document_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         await sent.edit_text("抱歉，讀取檔案時發生錯誤。")
 
 
-def _format_reply(result: dict, elapsed: float | None = None) -> str:
+def _format_reply(
+    result: dict, elapsed: float | None = None, user_id: int | None = None
+) -> str:
     """Format gateway response with model, throughput, and truncation info.
 
     Header format:
         [model · 42 tok/s · 2.3s]  — when usage and elapsed are available
         [model · 2.3s]             — when usage is missing
         [model]                    — when elapsed is also unavailable
+
+    Content post-processing: LaTeX and light Markdown are converted to
+    Unicode via ``format_math.to_unicode``. Users can disable this per
+    session with ``/raw`` — pass the user_id so the toggle applies.
     """
     content = result["choices"][0]["message"]["content"]
+    if not (user_id is not None and is_raw(user_id)):
+        content = to_unicode(content)
     model = result.get("model", "unknown")
     finish = result["choices"][0].get("finish_reason", "")
 

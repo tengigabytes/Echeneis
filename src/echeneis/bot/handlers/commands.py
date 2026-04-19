@@ -10,6 +10,7 @@ import time
 from telegram import Update
 from telegram.ext import ContextTypes
 
+from echeneis.bot.format_math import toggle_raw
 from echeneis.bot.gateway_client import GatewayClient, GatewayError
 from echeneis.bot.handlers.messages import (
     _DEFAULT_MAX_TOKENS,
@@ -36,6 +37,7 @@ _HELP_USER = (
     "/use &lt;模型&gt; &lt;訊息&gt; — 指定模型回覆\n"
     "/model — 查看目前路由狀態\n"
     "/status — 系統狀態、配額、用量\n"
+    "/raw — 切換自動 Unicode 轉換（LaTeX → × · Ω 等）\n"
 )
 
 _HELP_ADMIN = (
@@ -143,6 +145,28 @@ async def whoami_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
 
 
 @require_user
+async def raw_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle /raw — toggle LaTeX/Markdown → Unicode conversion for this user.
+
+    Defaults to on (conversion enabled). Toggle if you need the literal
+    model output — useful when the model emits currency, shell snippets,
+    or anything where ``$...$`` should not be re-rendered.
+    """
+    user_id = update.effective_user.id
+    now_on = toggle_raw(user_id)
+    if now_on:
+        await update.message.reply_text(
+            "📐 已切換為原始模式：回覆不再自動轉換 LaTeX/Markdown。\n"
+            "再次輸入 /raw 可恢復。"
+        )
+    else:
+        await update.message.reply_text(
+            "✨ 已恢復自動轉換（LaTeX → Unicode、Markdown 列表→ •）。\n"
+            "再次輸入 /raw 切回原始。"
+        )
+
+
+@require_user
 async def think_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle /think — deep reasoning via Tier S."""
     text = " ".join(context.args) if context.args else ""
@@ -162,7 +186,7 @@ async def think_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         )
         elapsed = time.perf_counter() - started
         record_from_result(update.effective_user.id, result, task="think")
-        reply = _format_reply(result, elapsed)
+        reply = _format_reply(result, elapsed, user_id=update.effective_user.id)
         await _send_reply(sent, reply)
     except GatewayError as e:
         logger.error("Gateway error in /think: %s", e)
@@ -189,7 +213,7 @@ async def fast_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         )
         elapsed = time.perf_counter() - started
         record_from_result(update.effective_user.id, result, task="fast")
-        reply = _format_reply(result, elapsed)
+        reply = _format_reply(result, elapsed, user_id=update.effective_user.id)
         await _send_reply(sent, reply)
     except GatewayError as e:
         logger.error("Gateway error in /fast: %s", e)
@@ -254,7 +278,7 @@ async def use_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         )
         elapsed = time.perf_counter() - started
         record_from_result(update.effective_user.id, result, task="use")
-        reply = _format_reply(result, elapsed)
+        reply = _format_reply(result, elapsed, user_id=update.effective_user.id)
         await _send_reply(sent, reply)
     except GatewayError as e:
         logger.error("Gateway error in /use: %s", e)

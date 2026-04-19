@@ -34,6 +34,7 @@ from echeneis.bot.handlers.commands import (
     help_command,
     model_command,
     models_command,
+    raw_command,
     start_command,
     think_command,
     use_command,
@@ -189,6 +190,7 @@ def main() -> None:
     app.add_handler(CommandHandler("models", models_command))
     app.add_handler(CommandHandler("use", use_command))
     app.add_handler(CommandHandler("model", model_command))
+    app.add_handler(CommandHandler("raw", raw_command))
     app.add_handler(CommandHandler("bench", bench_command))
     app.add_handler(CommandHandler("status", status_command))
     app.add_handler(CommandHandler("eviction", eviction_command))
