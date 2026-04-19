@@ -14,7 +14,7 @@ from telegram.ext import ContextTypes
 
 from echeneis.bot.conversation import ConversationStore
 from echeneis.bot.gateway_client import GatewayClient, GatewayError
-from echeneis.bot.middleware import is_authorized
+from echeneis.bot.middleware import require_user
 
 logger = logging.getLogger(__name__)
 
@@ -61,11 +61,9 @@ _DEFAULT_MAX_TOKENS = 8192
 _TG_MSG_LIMIT = 4096
 
 
+@require_user
 async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle plain text messages — route via default (A tier)."""
-    if not is_authorized(update):
-        return
-
     text = update.message.text
     if not text:
         return
@@ -109,11 +107,9 @@ async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await sent.edit_text("抱歉，處理請求時發生錯誤。請稍後再試。")
 
 
+@require_user
 async def photo_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle photo messages — route via vision pipeline."""
-    if not is_authorized(update):
-        return
-
     # Get the highest-resolution photo
     photo: PhotoSize = update.message.photo[-1]
     caption = update.message.caption or "請描述這張圖片。"
@@ -168,11 +164,9 @@ async def photo_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         await sent.edit_text("抱歉，下載圖片時發生錯誤。")
 
 
+@require_user
 async def document_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handle document/file messages — download and process as text context."""
-    if not is_authorized(update):
-        return
-
     doc: Document = update.message.document
     caption = update.message.caption or ""
     file_name = doc.file_name or "unknown"

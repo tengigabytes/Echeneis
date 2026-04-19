@@ -19,6 +19,14 @@ from telegram.ext import (
 
 from echeneis.bot.conversation import ConversationStore
 from echeneis.bot.gateway_client import GatewayClient
+from echeneis.bot.handlers.admin_users import (
+    adduser_command,
+    ban_command,
+    listusers_command,
+    removeuser_command,
+    unban_command,
+    whois_command,
+)
 from echeneis.bot.handlers.bench import bench_command
 from echeneis.bot.handlers.commands import (
     fast_command,
@@ -28,6 +36,7 @@ from echeneis.bot.handlers.commands import (
     start_command,
     think_command,
     use_command,
+    whoami_command,
 )
 from echeneis.bot.handlers.eviction import eviction_command
 from echeneis.bot.handlers.messages import (
@@ -129,6 +138,7 @@ def main() -> None:
     # Register command handlers
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", help_command))
+    app.add_handler(CommandHandler("whoami", whoami_command))
     app.add_handler(CommandHandler("think", think_command))
     app.add_handler(CommandHandler("fast", fast_command))
     app.add_handler(CommandHandler("models", models_command))
@@ -137,6 +147,14 @@ def main() -> None:
     app.add_handler(CommandHandler("bench", bench_command))
     app.add_handler(CommandHandler("status", status_command))
     app.add_handler(CommandHandler("eviction", eviction_command))
+
+    # Admin: user management
+    app.add_handler(CommandHandler("adduser", adduser_command))
+    app.add_handler(CommandHandler("removeuser", removeuser_command))
+    app.add_handler(CommandHandler("listusers", listusers_command))
+    app.add_handler(CommandHandler("ban", ban_command))
+    app.add_handler(CommandHandler("unban", unban_command))
+    app.add_handler(CommandHandler("whois", whois_command))
 
     # Register message handlers (order matters — more specific first)
     app.add_handler(MessageHandler(filters.PHOTO, photo_message))

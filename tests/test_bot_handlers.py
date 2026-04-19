@@ -76,8 +76,8 @@ class TestStartCommand:
         assert "Echeneis Bot" in call_text
 
     @pytest.mark.asyncio
-    async def test_unauthorized_ignored(self, monkeypatch):
-        """Unauthorized user gets no response."""
+    async def test_unregistered_sees_request_prompt(self, monkeypatch):
+        """Unregistered user receives their ID and a prompt to /request."""
         monkeypatch.setenv("TELEGRAM_ALLOWED_USERS", "99999")
         from echeneis.bot.middleware import reset_whitelist
 
@@ -87,7 +87,10 @@ class TestStartCommand:
         ctx = _make_context(AsyncMock())
 
         await start_command(update, ctx)
-        update.message.reply_text.assert_not_called()
+        update.message.reply_text.assert_called_once()
+        call_text = update.message.reply_text.call_args[0][0]
+        assert "未註冊" in call_text
+        assert "/request" in call_text
 
 
 class TestHelpCommand:

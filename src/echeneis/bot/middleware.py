@@ -1,71 +1,130 @@
-"""Telegram Bot middleware.
+"""Telegram Bot authentication middleware.
 
-Handles authentication via user whitelist.
+Provides role-based access decorators for handlers. Uses the UserStore
+singleton to resolve roles (admin / guest / unregistered).
 """
 
+from __future__ import annotations
+
+import functools
 import logging
-import os
+from typing import Any, Awaitable, Callable
 
 from telegram import Update
+from telegram.ext import ContextTypes
+
+from echeneis.bot.user_store import Role, get_store
 
 logger = logging.getLogger(__name__)
 
-
-def _load_allowed_users() -> set[int]:
-    """Load allowed Telegram user IDs from environment.
-
-    Expects TELEGRAM_ALLOWED_USERS as a comma-separated list of
-    integer user IDs, e.g. "123456,789012".
-
-    Returns:
-        Set of allowed user IDs. Empty set means NO users are allowed.
-    """
-    raw = os.environ.get("TELEGRAM_ALLOWED_USERS", "").strip()
-    if not raw:
-        return set()
-    ids: set[int] = set()
-    for part in raw.split(","):
-        part = part.strip()
-        if part:
-            try:
-                ids.add(int(part))
-            except ValueError:
-                logger.warning("Invalid user ID in TELEGRAM_ALLOWED_USERS: %r", part)
-    return ids
+Handler = Callable[[Update, ContextTypes.DEFAULT_TYPE], Awaitable[Any]]
 
 
-# Module-level cache; loaded once at import time.
-_allowed_users: set[int] | None = None
-
-
-def get_allowed_users() -> set[int]:
-    """Get the set of allowed user IDs (cached)."""
-    global _allowed_users
-    if _allowed_users is None:
-        _allowed_users = _load_allowed_users()
-        logger.info("Whitelist loaded: %d user(s)", len(_allowed_users))
-    return _allowed_users
+def _user_id(update: Update) -> int | None:
+    if update.effective_user is None:
+        return None
+    return update.effective_user.id
 
 
 def is_authorized(update: Update) -> bool:
-    """Check whether the update's sender is in the whitelist.
+    """Return True if sender is admin or non-banned guest.
 
-    Args:
-        update: Incoming Telegram update.
-
-    Returns:
-        True if the user is allowed, False otherwise.
+    Retained for backward compatibility with handlers that have not yet
+    been converted to use @require_user. New handlers should use the
+    decorators below.
     """
-    if not update.effective_user:
+    uid = _user_id(update)
+    if uid is None:
         return False
-    allowed = get_allowed_users()
-    if not allowed:
-        logger.warning("Whitelist is empty — all users are blocked")
+    return get_store().is_authorized(uid)
+
+
+def is_admin(update: Update) -> bool:
+    uid = _user_id(update)
+    if uid is None:
         return False
-    return update.effective_user.id in allowed
+    return get_store().is_admin(uid)
+
+
+def role_of(update: Update) -> Role:
+    uid = _user_id(update)
+    if uid is None:
+        return Role.UNREGISTERED
+    return get_store().role(uid)
+
+
+# ── Decorators ────────────────────────────────────────────────────────
+
+
+def require_admin(handler: Handler) -> Handler:
+    """Allow only admins; silently drop others.
+
+    Silent drop (not a reply) matches prior is_authorized behavior —
+    bots that reply to unauthorized users help attackers confirm the
+    bot exists.
+    """
+
+    @functools.wraps(handler)
+    async def wrapper(
+        update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> Any:
+        uid = _user_id(update)
+        if uid is None or not get_store().is_admin(uid):
+            logger.debug(
+                "require_admin: denied for user_id=%s on %s",
+                uid,
+                handler.__name__,
+            )
+            return None
+        return await handler(update, context)
+
+    return wrapper
+
+
+def require_user(handler: Handler) -> Handler:
+    """Allow admins and non-banned guests; silently drop others."""
+
+    @functools.wraps(handler)
+    async def wrapper(
+        update: Update, context: ContextTypes.DEFAULT_TYPE
+    ) -> Any:
+        uid = _user_id(update)
+        if uid is None or not get_store().is_authorized(uid):
+            logger.debug(
+                "require_user: denied for user_id=%s on %s",
+                uid,
+                handler.__name__,
+            )
+            return None
+        return await handler(update, context)
+
+    return wrapper
+
+
+def public(handler: Handler) -> Handler:
+    """Allow anyone, including unregistered users.
+
+    Used for /whoami, /start, /help, /request. A pass-through for now,
+    but kept as a decorator so the intent is explicit at the call site
+    and so future rate-limiting for public endpoints has a single hook.
+    """
+    return handler
+
+
+# ── Legacy API (kept for existing tests) ──────────────────────────────
 
 
 def reset_whitelist() -> None:
-    """Force reload of the whitelist on next check (for testing)."""
-    global _allowed_users
-    _allowed_users = None
+    """Force reload of the user store on next check (for testing)."""
+    from echeneis.bot.user_store import reset_store
+
+    reset_store()
+
+
+def get_allowed_users() -> set[int]:
+    """Return the admin ID set (legacy API).
+
+    Legacy tests expect this to mirror TELEGRAM_ALLOWED_USERS env. New code
+    should use UserStore directly to get admins vs guests distinctly.
+    """
+    return set(get_store().list_admins())

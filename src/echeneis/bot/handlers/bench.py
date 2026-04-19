@@ -14,7 +14,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 
 from echeneis.bot.handlers.messages import _send_reply
-from echeneis.bot.middleware import is_authorized
+from echeneis.bot.middleware import require_admin
 from echeneis.bot.task_registry import TaskRegistry
 
 logger = logging.getLogger(__name__)
@@ -239,8 +239,9 @@ def _format_rate_limit(dim_results: list) -> list[str]:
     return rows
 
 
+@require_admin
 async def bench_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /bench — run benchmarks and report results.
+    """Handle /bench — run benchmarks and report results (admin only).
 
     Supports:
         /bench                          — all dimensions, all models
@@ -248,9 +249,6 @@ async def bench_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         /bench <dimension> <model>      — single dimension, single model
         /bench all <model>              — all dimensions, single model
     """
-    if not is_authorized(update):
-        return
-
     args = context.args or []
 
     # Parse arguments

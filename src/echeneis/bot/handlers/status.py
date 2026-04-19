@@ -14,7 +14,7 @@ from telegram.ext import ContextTypes
 
 from echeneis.bot.gateway_client import GatewayClient, GatewayError
 from echeneis.bot.handlers.messages import _send_reply
-from echeneis.bot.middleware import is_authorized
+from echeneis.bot.middleware import require_user
 from echeneis.bot.monitor import get_quota_status, get_vm_resources
 
 logger = logging.getLogger(__name__)
@@ -47,11 +47,14 @@ def _bar(pct: float, width: int = 10) -> str:
     return "█" * filled + "░" * (width - filled)
 
 
+@require_user
 async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /status — show system dashboard."""
-    if not is_authorized(update):
-        return
+    """Handle /status — show system dashboard.
 
+    Admin gets full system view; guest gets a trimmed version
+    (their own usage + basic system health). Admin-only content will
+    be expanded in Phase 6.4 with per-user usage breakdown.
+    """
     gateway: GatewayClient = context.bot_data["gateway"]
     sent = await update.message.reply_text("查詢中…")
 
