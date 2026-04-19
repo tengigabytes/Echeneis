@@ -88,10 +88,24 @@ class Tier:
         return self.models.get(task_type)
 
     def get_fallback(self, task_type: str) -> str | None:
-        """Get fallback model for a task type within this tier."""
+        """Get first fallback model for a task type within this tier."""
+        chain = self.get_fallback_chain(task_type)
+        return chain[0] if chain else None
+
+    def get_fallback_chain(self, task_type: str) -> list[str]:
+        """Get ordered fallback chain for a task type.
+
+        Supports both scalar (single model) and list (multi-provider chain)
+        forms in routing_rules.yaml, enabling provider diversity.
+        """
         if isinstance(self.fallback, list):
-            return self.fallback[0] if self.fallback else None
-        return self.fallback.get(task_type)
+            return list(self.fallback)
+        value = self.fallback.get(task_type)
+        if value is None:
+            return []
+        if isinstance(value, list):
+            return list(value)
+        return [value]
 
 
 @dataclass

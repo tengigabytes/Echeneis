@@ -146,10 +146,10 @@ class Router:
         if primary:
             candidates.append(primary)
 
-        # Fallback model for this task type
-        fallback = tier.get_fallback(classification.task_type)
-        if fallback and fallback not in candidates:
-            candidates.append(fallback)
+        # Fallback chain for this task type (supports provider diversity)
+        for fallback in tier.get_fallback_chain(classification.task_type):
+            if fallback and fallback not in candidates:
+                candidates.append(fallback)
 
         # If no task-specific model found, try first available in tier
         if not candidates:

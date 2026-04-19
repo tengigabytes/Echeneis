@@ -95,6 +95,31 @@ model_list:
       rpm: 20
       rpd: 50
 
+  # --- NVIDIA NIM (build.nvidia.com, rate-limit-based trial, no credit cap) ---
+  - model_name: nvidia-nemotron-3-super-120b
+    litellm_params:
+      model: nvidia_nim/nvidia/nemotron-3-super-120b-a12b
+      api_key: os.environ/NVIDIA_API_KEY
+    rate_limits:
+      rpm: 40
+      rpd: 0  # no published daily cap
+
+  - model_name: nvidia-mistral-small-4-119b
+    litellm_params:
+      model: nvidia_nim/mistralai/mistral-small-4-119b
+      api_key: os.environ/NVIDIA_API_KEY
+    rate_limits:
+      rpm: 40
+      rpd: 0
+
+  - model_name: nvidia-gemma-4-31b
+    litellm_params:
+      model: nvidia_nim/google/gemma-4-31b
+      api_key: os.environ/NVIDIA_API_KEY
+    rate_limits:
+      rpm: 40
+      rpd: 0
+
   # --- Gemini API ---
   - model_name: gemini-2.5-flash
     litellm_params:
