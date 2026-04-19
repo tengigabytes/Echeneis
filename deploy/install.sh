@@ -60,6 +60,14 @@ chmod 644 /etc/cron.d/echeneis-daily-digest
 chmod +x "${INSTALL_DIR}/deploy/daily-digest.sh"
 info "Daily digest cron installed (23:00 daily)"
 
+# ── Usage archive cron ───────────────────────────────────────────────────────
+
+info "Installing usage archive cron job"
+cp "${INSTALL_DIR}/deploy/echeneis-archive-usage.cron" /etc/cron.d/echeneis-archive-usage
+chmod 644 /etc/cron.d/echeneis-archive-usage
+chmod +x "${INSTALL_DIR}/deploy/archive-usage.sh"
+info "Usage archive cron installed (03:15 daily, 90-day retention)"
+
 # ── Done ─────────────────────────────────────────────────────────────────────
 
 echo ""

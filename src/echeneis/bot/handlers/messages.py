@@ -16,6 +16,7 @@ from echeneis.bot.conversation import ConversationStore
 from echeneis.bot.gateway_client import GatewayClient, GatewayError
 from echeneis.bot.handlers.requests import prompt_unregistered
 from echeneis.bot.middleware import is_authorized
+from echeneis.bot.user_usage import record_from_result
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +108,7 @@ async def text_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             parent_id=update.message.message_id,
             model=routed_model,
         )
+        record_from_result(update.effective_user.id, result, task="chat")
 
         reply = _format_reply(result, elapsed)
         await _send_reply(sent, reply)
@@ -164,6 +166,7 @@ async def photo_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             parent_id=update.message.message_id,
             model=routed_model,
         )
+        record_from_result(update.effective_user.id, result, task="vision")
 
         reply = _format_reply(result, elapsed)
         await _send_reply(sent, reply)
@@ -238,6 +241,7 @@ async def document_message(update: Update, context: ContextTypes.DEFAULT_TYPE) -
             parent_id=update.message.message_id,
             model=routed_model,
         )
+        record_from_result(update.effective_user.id, result, task="document")
 
         reply = _format_reply(result, elapsed)
         await _send_reply(sent, reply)

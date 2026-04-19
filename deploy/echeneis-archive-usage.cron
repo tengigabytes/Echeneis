@@ -1,0 +1,3 @@
+# Echeneis — nightly archive of user_usage.jsonl (entries > 90 days)
+# Install to /etc/cron.d/echeneis-archive-usage
+15 3 * * * root /opt/echeneis/deploy/archive-usage.sh

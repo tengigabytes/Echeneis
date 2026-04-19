@@ -18,6 +18,7 @@ from echeneis.bot.handlers.messages import (
 )
 from echeneis.bot.middleware import public, require_user, role_of
 from echeneis.bot.user_store import Role
+from echeneis.bot.user_usage import record_from_result
 
 logger = logging.getLogger(__name__)
 
@@ -160,6 +161,7 @@ async def think_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             max_tokens=_DEFAULT_MAX_TOKENS,
         )
         elapsed = time.perf_counter() - started
+        record_from_result(update.effective_user.id, result, task="think")
         reply = _format_reply(result, elapsed)
         await _send_reply(sent, reply)
     except GatewayError as e:
@@ -186,6 +188,7 @@ async def fast_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             max_tokens=_DEFAULT_MAX_TOKENS,
         )
         elapsed = time.perf_counter() - started
+        record_from_result(update.effective_user.id, result, task="fast")
         reply = _format_reply(result, elapsed)
         await _send_reply(sent, reply)
     except GatewayError as e:
@@ -250,6 +253,7 @@ async def use_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             max_tokens=_DEFAULT_MAX_TOKENS,
         )
         elapsed = time.perf_counter() - started
+        record_from_result(update.effective_user.id, result, task="use")
         reply = _format_reply(result, elapsed)
         await _send_reply(sent, reply)
     except GatewayError as e:

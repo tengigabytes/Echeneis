@@ -14,8 +14,11 @@ from telegram.ext import ContextTypes
 
 from echeneis.bot.gateway_client import GatewayClient, GatewayError
 from echeneis.bot.handlers.messages import _send_reply
-from echeneis.bot.middleware import require_user
+from echeneis.bot.middleware import require_user, role_of
 from echeneis.bot.monitor import get_quota_status, get_vm_resources
+from echeneis.bot.user_store import Role, get_store
+from echeneis.bot.user_usage import summary as usage_summary
+from echeneis.bot.user_usage import user_row
 
 logger = logging.getLogger(__name__)
 
@@ -119,9 +122,73 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             )
         parts.append("<pre>" + "\n".join(q_lines) + "</pre>")
 
+    # -- Usage dashboard (admin: all users; guest: just self) --
+    is_admin = role_of(update) is Role.ADMIN
+    if is_admin:
+        parts.append(_format_admin_usage())
+    else:
+        parts.append(_format_guest_usage(update.effective_user.id))
+
     # -- Uptime --
     if _boot_time:
         uptime = time.time() - _boot_time
         parts.append(f"⏱ 運行 {_fmt_uptime(uptime)}")
 
     await _send_reply(sent, "\n".join(parts), parse_mode="HTML")
+
+
+def _format_admin_usage() -> str:
+    """Render per-user × {1d, 7d, all} table + top-7d models."""
+    data = usage_summary()
+    users = data["users"]
+    totals = data["totals"]
+    top = data["top_models_7d"][:5]
+
+    if not users:
+        return "📊 <b>用量</b>\n<pre>尚無紀錄</pre>"
+
+    store = get_store()
+    known_admins = set(store.list_admins())
+    guest_names = {uid: rec.get("name", "") for uid, rec in store.list_guests()}
+
+    def label(uid: int) -> str:
+        if uid in known_admins:
+            return f"{uid} (admin)"
+        name = guest_names.get(uid)
+        return f"{uid} ({name})" if name else str(uid)
+
+    # Width for label column — capped so the line stays in Telegram's
+    # mono width.
+    rows = sorted(users.items(), key=lambda kv: -kv[1]["all"])
+    lbl_w = min(28, max(len(label(uid)) for uid, _ in rows))
+
+    lines = [f"{'User':<{lbl_w}}  {'1d':>5} {'7d':>5} {'all':>6}"]
+    lines.append("-" * (lbl_w + 21))
+    for uid, counts in rows:
+        lines.append(
+            f"{label(uid)[:lbl_w]:<{lbl_w}}  "
+            f"{counts['1d']:>5} {counts['7d']:>5} {counts['all']:>6}"
+        )
+    lines.append("-" * (lbl_w + 21))
+    lines.append(
+        f"{'Total':<{lbl_w}}  {totals['1d']:>5} {totals['7d']:>5} {totals['all']:>6}"
+    )
+
+    parts = ["📊 <b>用量（1d / 7d / all）</b>", "<pre>" + "\n".join(lines) + "</pre>"]
+
+    if top:
+        top_lines = [f"  {m:<24} {n}" for m, n in top]
+        parts.append("🔥 <b>Top models (7d)</b>")
+        parts.append("<pre>" + "\n".join(top_lines) + "</pre>")
+
+    return "\n".join(parts)
+
+
+def _format_guest_usage(user_id: int) -> str:
+    """Single-row usage view for a guest (their own numbers only)."""
+    row = user_row(user_id)
+    lines = [
+        f"{'1d':>5} {'7d':>5} {'all':>6}",
+        f"{row['1d']:>5} {row['7d']:>5} {row['all']:>6}",
+    ]
+    return "📊 <b>你的用量</b>\n<pre>" + "\n".join(lines) + "</pre>"
