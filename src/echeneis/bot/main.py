@@ -156,9 +156,13 @@ def main() -> None:
         logger.error("TELEGRAM_BOT_TOKEN is not set")
         sys.exit(1)
 
-    allowed_users = os.environ.get("TELEGRAM_ALLOWED_USERS", "")
-    if not allowed_users.strip():
-        logger.warning("TELEGRAM_ALLOWED_USERS is empty — bot will reject all messages")
+    admin_env = os.environ.get("TELEGRAM_ADMIN_USERS", "").strip()
+    legacy_env = os.environ.get("TELEGRAM_ALLOWED_USERS", "").strip()
+    if not admin_env and not legacy_env:
+        logger.warning(
+            "No admins configured — set TELEGRAM_ADMIN_USERS "
+            "(or legacy TELEGRAM_ALLOWED_USERS) to enable the bot"
+        )
 
     gateway = GatewayClient()
 
