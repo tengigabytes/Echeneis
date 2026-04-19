@@ -36,7 +36,6 @@ services:
       - TZ=Asia/Taipei
     volumes:
       - /var/lib/echeneis/state:/app/state
-      - /opt/echeneis/deploy:/app/deploy:ro
       - /proc:/host/proc:ro
     depends_on:
       gateway:

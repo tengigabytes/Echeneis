@@ -1,0 +1,24 @@
+[Unit]
+Description=Echeneis anti-eviction idle CPU load
+Documentation=file:///opt/echeneis/CLAUDE.md
+After=network.target
+
+[Service]
+# Constant ~21% total CPU (1 core at 84% on 4-OCPU ARM).
+# Oracle reclaims instances whose 7-day p95 CPU < 20%; 21% stays above that
+# 100% of the time, never triggering the reclaim heuristic. Running at the
+# lowest possible priority means real services always win.
+Type=simple
+ExecStart=/usr/bin/stress-ng --cpu 1 --cpu-load 84 --cpu-method matrixprod --quiet
+
+Nice=19
+IOSchedulingClass=idle
+CPUSchedulingPolicy=idle
+
+Restart=always
+RestartSec=10
+StandardOutput=null
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

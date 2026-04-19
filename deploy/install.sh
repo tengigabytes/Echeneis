@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Echeneis — install systemd service and cron job.
+# Echeneis — install systemd services and cron jobs.
 # Run after vm-init.sh and editing .env. Re-runnable.
 #
 # Usage:
@@ -8,7 +8,7 @@ set -euo pipefail
 
 INSTALL_DIR="/opt/echeneis"
 SERVICE_FILE="${INSTALL_DIR}/deploy/echeneis.service"
-CRON_FILE="${INSTALL_DIR}/deploy/echeneis-anti-eviction.cron"
+IDLE_SERVICE_FILE="${INSTALL_DIR}/deploy/echeneis-idle.service"
 AUTO_UPDATE_CRON="${INSTALL_DIR}/deploy/echeneis-auto-update.cron"
 DAILY_DIGEST_CRON="${INSTALL_DIR}/deploy/echeneis-daily-digest.cron"
 
@@ -20,20 +20,27 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-# ── systemd service ──────────────────────────────────────────────────────────
+# ── systemd service (main compose stack) ─────────────────────────────────────
 
 info "Installing systemd service"
 cp "${SERVICE_FILE}" /etc/systemd/system/echeneis.service
 systemctl daemon-reload
 info "Service installed. Enable with: systemctl enable --now echeneis"
 
-# ── Anti-eviction cron ───────────────────────────────────────────────────────
+# ── Anti-eviction idle service ───────────────────────────────────────────────
 
-info "Installing anti-eviction cron job"
-cp "${CRON_FILE}" /etc/cron.d/echeneis-anti-eviction
-chmod 644 /etc/cron.d/echeneis-anti-eviction
-chmod +x "${INSTALL_DIR}/deploy/anti-eviction.sh"
-info "Anti-eviction cron installed (hourly, adaptive load)"
+info "Installing anti-eviction idle service"
+
+# Clean up legacy cron-based approach if present.
+if [[ -f /etc/cron.d/echeneis-anti-eviction ]]; then
+    info "Removing legacy anti-eviction cron"
+    rm -f /etc/cron.d/echeneis-anti-eviction
+fi
+
+cp "${IDLE_SERVICE_FILE}" /etc/systemd/system/echeneis-idle.service
+systemctl daemon-reload
+systemctl enable --now echeneis-idle.service
+info "Idle service enabled (target ~21% total CPU, Nice=19)"
 
 # ── Auto-update cron ─────────────────────────────────────────────────────────
 
@@ -68,5 +75,5 @@ echo "  2. Start Echeneis:"
 echo "     sudo systemctl enable --now echeneis"
 echo ""
 echo "  3. Verify:"
-echo "     sudo systemctl status echeneis"
+echo "     sudo systemctl status echeneis echeneis-idle"
 echo "     curl http://localhost:4000/health"

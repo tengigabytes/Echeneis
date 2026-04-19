@@ -1,4 +1,0 @@
-# Echeneis anti-eviction: adaptive CPU/RAM stress to prevent Oracle Free Tier reclaim.
-# Runs every hour; duration and intensity adapt to current load and 7-day duty budget.
-# Install to /etc/cron.d/echeneis-anti-eviction
-0 * * * * root /opt/echeneis/deploy/anti-eviction.sh
