@@ -7,7 +7,7 @@ tiers:
     models:
       reasoning: gemma-4-31b
     fallback:
-      - nvidia-nemotron-3-super-120b    # NVIDIA NIM (40 RPM, no credit cap)
+      - nvidia-nemotron-super-49b    # NVIDIA NIM (40 RPM, no credit cap)
       - gemini-2.5-flash
       - github-gpt-4o
 
@@ -26,20 +26,20 @@ tiers:
     # single provider's outage never breaks the entire task.
     fallback:
       translation:
-        - nvidia-mistral-small-4-119b   # NVIDIA -Mistral family, diff endpoint
+        - nvidia-devstral-123b   # NVIDIA -Mistral family, diff endpoint
         - gemma-4-31b                    # Google AI Studio
         - nvidia-gemma-4-31b             # NVIDIA -Google variant
       code_generation:
         - mistral-large-3
-        - nvidia-nemotron-3-super-120b  # NVIDIA -A-tier reasoning
+        - nvidia-nemotron-super-49b  # NVIDIA -A-tier reasoning
         - nvidia-gemma-4-31b
       code_review:
         - mistral-large-3
-        - nvidia-nemotron-3-super-120b
+        - nvidia-nemotron-super-49b
         - nvidia-gemma-4-31b
       general_qa:
         - cerebras-llama-8b
-        - nvidia-nemotron-3-super-120b
+        - nvidia-nemotron-super-49b
         - groq-llama-70b
       vision:
         - nvidia-gemma-4-31b             # NVIDIA vision backup
