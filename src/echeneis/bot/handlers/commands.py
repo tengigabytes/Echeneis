@@ -31,10 +31,10 @@ _HELP_COMMON = (
 )
 
 _HELP_USER = (
-    "/think <訊息> — 深度推理模式（S 級）\n"
-    "/fast <訊息> — 快速回覆模式（B 級）\n"
+    "/think &lt;訊息&gt; — 深度推理模式（S 級）\n"
+    "/fast &lt;訊息&gt; — 快速回覆模式（B 級）\n"
     "/models — 列出所有可用模型\n"
-    "/use <模型> <訊息> — 指定模型回覆\n"
+    "/use &lt;模型&gt; &lt;訊息&gt; — 指定模型回覆\n"
     "/model — 查看目前路由狀態\n"
     "/status — 系統狀態、配額、用量\n"
 )
@@ -43,21 +43,21 @@ _HELP_ADMIN = (
     "/eviction — Anti-eviction idle service 狀態\n"
     "/bench [維度] [模型] — 執行 benchmark 測試\n"
     "\n<b>用戶管理</b>\n"
-    "/adduser <id> [name] — 新增 guest\n"
-    "/removeuser <id> — 移除 guest\n"
+    "/adduser &lt;id&gt; [name] — 新增 guest\n"
+    "/removeuser &lt;id&gt; — 移除 guest\n"
     "/listusers — 列出所有 guest\n"
-    "/ban <id> / /unban <id> — 停用 / 恢復\n"
-    "/whois <id> — 查詢用戶\n"
+    "/ban &lt;id&gt; / /unban &lt;id&gt; — 停用 / 恢復\n"
+    "/whois &lt;id&gt; — 查詢用戶\n"
     "/pending — 列出待處理申請\n"
     "\n<b>運維</b>\n"
-    "/broadcast <訊息> — 公告所有用戶\n"
+    "/broadcast &lt;訊息&gt; — 公告所有用戶\n"
     "/logs [N] — 最近 N 條 WARNING+ log\n"
     "/health — 強制健康檢查\n"
     "/reload — 熱重載設定與白名單\n"
 )
 
 _HELP_UNREGISTERED = (
-    "/request [reason] — 送出使用申請\n"
+    "/request [原因] — 送出使用申請\n"
     "\n你目前未註冊，請先申請並等待管理員核准。\n"
     "申請通過後即可使用完整功能。"
 )
