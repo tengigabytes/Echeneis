@@ -4,13 +4,14 @@ Exposes an OpenAI-compatible /chat/completions endpoint that
 classifies requests and routes them through the tier system.
 """
 
+import json
 import logging
 import os
 from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse, StreamingResponse
 
 from echeneis.gateway.classifier import TaskClassifier
 from echeneis.gateway.config import RoutingConfig
@@ -57,6 +58,43 @@ def _install_file_logging() -> None:
         root.addHandler(fh)
     except OSError as exc:
         logger.warning("Could not open gateway.log for WARNING+ logging: %s", exc)
+
+
+async def _sse_from_litellm(stream_iter: Any, model_name: str):
+    """Translate litellm streaming chunks into OpenAI-style SSE frames.
+
+    Each chunk is serialised as ``data: {json}\\n\\n`` and a final
+    ``data: [DONE]\\n\\n`` marker is emitted. The first chunk is tagged with
+    the echeneis-resolved model name so downstream clients can attribute
+    usage without reading a response header.
+
+    Args:
+        stream_iter: Async iterator of litellm ModelResponse-like chunks.
+        model_name: Short echeneis model name for the `_echeneis_model` tag.
+
+    Yields:
+        UTF-8 bytes suitable for text/event-stream.
+    """
+    first = True
+    try:
+        async for chunk in stream_iter:
+            try:
+                payload = chunk.model_dump()
+            except AttributeError:
+                # Defensive: unexpected non-pydantic object.
+                payload = (
+                    dict(chunk) if hasattr(chunk, "__iter__") else {"raw": str(chunk)}
+                )
+            if first:
+                payload["_echeneis_model"] = model_name
+                first = False
+            yield f"data: {json.dumps(payload, default=str)}\n\n".encode("utf-8")
+    except Exception as e:
+        # Surface mid-stream failures to the client as a final JSON frame.
+        err = {"error": {"message": str(e), "type": type(e).__name__}}
+        yield f"data: {json.dumps(err)}\n\n".encode("utf-8")
+    finally:
+        yield b"data: [DONE]\n\n"
 
 
 def create_app(
@@ -159,6 +197,31 @@ def create_app(
 
         # If a specific model is requested, bypass classification
         requested_model = body.get("model")
+        want_stream = bool(extra_params.pop("stream", False))
+
+        if want_stream:
+            # Force streaming params downstream; router will add include_usage.
+            try:
+                if requested_model:
+                    logger.info("Direct stream request: %s", requested_model)
+                    model_name, stream_iter = await router.route_direct_stream(
+                        requested_model, messages, **extra_params
+                    )
+                else:
+                    model_name, stream_iter = await router.route_stream(
+                        classification, messages, **extra_params
+                    )
+            except ValueError as e:
+                raise HTTPException(status_code=400, detail=str(e))
+            except RuntimeError as e:
+                logger.error("Streaming routing failed: %s", e)
+                raise HTTPException(status_code=502, detail=str(e))
+
+            return StreamingResponse(
+                _sse_from_litellm(stream_iter, model_name),
+                media_type="text/event-stream",
+                headers={"Cache-Control": "no-cache", "X-Echeneis-Model": model_name},
+            )
 
         try:
             if requested_model:

@@ -4,10 +4,11 @@ Routes classified requests to the appropriate model via litellm,
 with automatic failover on rate limits, server errors, and timeouts.
 """
 
+import asyncio
 import logging
 import os
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, AsyncIterator
 
 import litellm
 
@@ -34,6 +35,12 @@ class RoutedResponse:
 
     response: Any
     model_name: str  # Short name, e.g. "gemma-4-31b"
+
+
+# First-chunk timeout for streaming mode. If the model doesn't emit any
+# byte within this window, we treat it as a failure and try a fallback.
+# After the first chunk, inter-chunk idle is bounded by litellm's own timeout.
+_FIRST_CHUNK_TIMEOUT = 30.0
 
 
 # Maps short model names to their resolved litellm params.
@@ -306,6 +313,137 @@ class Router:
         except Exception as e:
             self._health.record_failure(short_name, getattr(e, "status_code", 500))
             raise RuntimeError(f"Model {short_name} failed: {e}") from e
+
+    async def route_stream(
+        self,
+        classification: Classification,
+        messages: list[dict[str, Any]],
+        **kwargs: Any,
+    ) -> tuple[str, AsyncIterator[Any]]:
+        """Streaming counterpart of route() with first-chunk failover.
+
+        Tries each candidate model; whichever emits the first chunk within
+        _FIRST_CHUNK_TIMEOUT wins and its iterator is returned. Mid-stream
+        errors propagate — we can't restart a partially-consumed response.
+
+        Args:
+            classification: The classified task type and tier.
+            messages: OpenAI-format messages list.
+            **kwargs: Additional params passed to litellm.acompletion.
+                `stream=True` is forced. `stream_options.include_usage=True`
+                is added so the final chunk carries token counts.
+
+        Returns:
+            (short_model_name, async_iterator) — iterator yields litellm
+            streaming chunks (ModelResponse-like objects).
+
+        Raises:
+            RuntimeError: If all candidate models fail to produce a first chunk.
+        """
+        candidates = self._pick_models(classification)
+        return await self._stream_with_failover(candidates, messages, **kwargs)
+
+    async def route_direct_stream(
+        self,
+        short_name: str,
+        messages: list[dict[str, Any]],
+        **kwargs: Any,
+    ) -> tuple[str, AsyncIterator[Any]]:
+        """Streaming counterpart of route_direct() — no failover."""
+        return await self._stream_with_failover([short_name], messages, **kwargs)
+
+    async def _stream_with_failover(
+        self,
+        candidates: list[str],
+        messages: list[dict[str, Any]],
+        **kwargs: Any,
+    ) -> tuple[str, AsyncIterator[Any]]:
+        """Shared implementation: try each candidate until one yields a first chunk."""
+        timeout = self._config.failover.timeout_seconds
+        last_error: Exception | None = None
+
+        # Ensure usage counters are emitted on the terminal chunk
+        stream_options = kwargs.pop("stream_options", {}) or {}
+        stream_options.setdefault("include_usage", True)
+
+        for short_name in candidates:
+            if not self._health.is_available(short_name):
+                logger.info("Skipping %s — unavailable (stream)", short_name)
+                continue
+
+            entry = self._resolve_model(short_name)
+            logger.info("Streaming → %s (%s)", short_name, entry.litellm_model)
+
+            call_kwargs: dict[str, Any] = {
+                "model": entry.litellm_model,
+                "messages": messages,
+                "timeout": timeout,
+                "stream": True,
+                "stream_options": stream_options,
+                **kwargs,
+            }
+            if entry.api_key:
+                call_kwargs["api_key"] = entry.api_key
+            if entry.api_base:
+                call_kwargs["api_base"] = entry.api_base
+
+            try:
+                raw_iter = await litellm.acompletion(**call_kwargs)
+                # Wait for the first chunk under a tight timeout so a dead
+                # provider doesn't burn the Cloudflare 100s budget.
+                aiter = raw_iter.__aiter__()
+                first_chunk = await asyncio.wait_for(
+                    aiter.__anext__(), timeout=_FIRST_CHUNK_TIMEOUT
+                )
+            except (
+                litellm.RateLimitError,
+                litellm.AuthenticationError,
+                litellm.APIError,
+                litellm.Timeout,
+                asyncio.TimeoutError,
+                StopAsyncIteration,
+            ) as e:
+                default_status = 0 if isinstance(e, asyncio.TimeoutError) else 500
+                status = getattr(e, "status_code", default_status)
+                logger.warning(
+                    "Stream open failed on %s (%s), failing over",
+                    short_name,
+                    type(e).__name__,
+                )
+                self._health.record_failure(short_name, status)
+                last_error = e
+                continue
+            except Exception as e:
+                logger.warning("Unexpected stream error on %s: %s", short_name, e)
+                self._health.record_failure(short_name, 500)
+                last_error = e
+                continue
+
+            # Committed: first chunk in hand. Usage counter ticks now so that
+            # rate limiters see the call even if the stream aborts mid-way.
+            self._health.record_success(short_name)
+            if self._usage:
+                self._usage.record_request(short_name)
+
+            return short_name, self._wrap_stream(short_name, first_chunk, aiter)
+
+        raise RuntimeError(
+            f"All streaming candidates exhausted: {candidates}"
+        ) from last_error
+
+    async def _wrap_stream(
+        self, short_name: str, first_chunk: Any, rest: AsyncIterator[Any]
+    ) -> AsyncIterator[Any]:
+        """Prepend first_chunk and record mid-stream failures on health tracker."""
+        yield first_chunk
+        try:
+            async for chunk in rest:
+                yield chunk
+        except Exception as e:
+            status = getattr(e, "status_code", 500)
+            logger.warning("Mid-stream failure on %s: %s", short_name, e)
+            self._health.record_failure(short_name, status)
+            raise
 
     def list_models(self) -> list[dict[str, Any]]:
         """List all registered models with their health status.

@@ -4,9 +4,10 @@ Wraps HTTP calls to the gateway's /chat/completions, /health,
 and /routes endpoints.
 """
 
+import json
 import logging
 import os
-from typing import Any
+from typing import Any, AsyncIterator
 
 import httpx
 
@@ -69,6 +70,83 @@ class GatewayClient:
             ) from e
         except httpx.RequestError as e:
             logger.error("Gateway connection error: %s", e)
+            raise GatewayError(f"Cannot reach gateway: {e}") from e
+
+    async def chat_stream(
+        self,
+        messages: list[dict[str, Any]],
+        *,
+        command: str | None = None,
+        model: str | None = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[str]:
+        """Stream chat completion deltas from the gateway.
+
+        Opens an SSE connection and yields text content deltas as they
+        arrive. Usage/terminal chunks (no ``delta.content``) are silently
+        consumed. Byte-level streaming keeps the upstream connection active,
+        which matters when the gateway is fronted by a Cloudflare tunnel
+        whose edge proxy enforces a 100 s idle timeout between chunks.
+
+        Args:
+            messages: OpenAI-format message list.
+            command: Optional routing command ("/think", "/fast").
+            model: Optional model name to bypass automatic routing.
+            **kwargs: Extra params forwarded to litellm.
+
+        Yields:
+            Successive content delta strings. Empty strings are filtered.
+
+        Raises:
+            GatewayError: On connection failure, non-2xx status, or an
+                error frame mid-stream.
+        """
+        body: dict[str, Any] = {"messages": messages, "stream": True}
+        if command:
+            body["command"] = command
+        if model:
+            body["model"] = model
+        body.update(kwargs)
+
+        try:
+            async with self._client.stream(
+                "POST", "/chat/completions", json=body
+            ) as resp:
+                if resp.status_code >= 400:
+                    # Read body for the error message — non-stream path.
+                    text = (await resp.aread()).decode("utf-8", errors="replace")
+                    logger.error("Gateway HTTP %d: %s", resp.status_code, text)
+                    raise GatewayError(
+                        f"Gateway returned {resp.status_code}", resp.status_code
+                    )
+                async for line in resp.aiter_lines():
+                    if not line.startswith("data: "):
+                        continue
+                    data = line[6:].strip()
+                    if not data or data == "[DONE]":
+                        if data == "[DONE]":
+                            return
+                        continue
+                    try:
+                        chunk = json.loads(data)
+                    except json.JSONDecodeError:
+                        logger.warning("Dropping malformed SSE frame: %r", data[:200])
+                        continue
+                    if "error" in chunk:
+                        err = chunk["error"]
+                        raise GatewayError(
+                            f"Mid-stream error: {err.get('message', err)}"
+                        )
+                    choices = chunk.get("choices") or []
+                    if not choices:
+                        # Usage-only terminal chunk (include_usage).
+                        continue
+                    delta = choices[0].get("delta") or {}
+                    content = delta.get("content")
+                    if content:
+                        yield content
+        except httpx.RequestError as e:
+            logger.error("Gateway connection error (stream): %s", e)
             raise GatewayError(f"Cannot reach gateway: {e}") from e
 
     async def health(self) -> dict[str, Any]:
