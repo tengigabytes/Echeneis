@@ -22,6 +22,7 @@ __pycache__/
 dist/
 build/
 .venv/
+.venv-*/
 venv/
 
 # Node
@@ -45,5 +46,7 @@ benchmarks/results/
 
 # Claude Code local settings
 .claude/
+# Claude Code project-scope MCP config — contains API keys in env
+.mcp.json
 # Windows bash crash dumps
 *.stackdump
