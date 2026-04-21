@@ -24,13 +24,64 @@ class TestHealthEndpoint:
     def test_health_returns_ok(self, client: TestClient) -> None:
         resp = client.get("/health")
         assert resp.status_code == 200
-        data = resp.json()
-        assert data["status"] == "ok"
-        assert "providers" in data
+        assert resp.json() == {"status": "ok"}
 
-    def test_health_providers_initially_empty(self, client: TestClient) -> None:
-        resp = client.get("/health")
+    def test_health_detail_providers_initially_empty(self, client: TestClient) -> None:
+        resp = client.get("/health/detail")
+        assert resp.status_code == 200
         assert resp.json()["providers"] == {}
+
+
+class TestRobotsTxt:
+    def test_robots_blocks_all(self, client: TestClient) -> None:
+        resp = client.get("/robots.txt")
+        assert resp.status_code == 200
+        assert "User-agent: *" in resp.text
+        assert "Disallow: /" in resp.text
+
+
+class TestAuth:
+    def test_non_loopback_without_token_returns_401(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("ECHENEIS_API_KEY", "sk-test")
+        app = create_app(
+            routing_rules_path=f"{_CONFIG_DIR}/routing_rules.yaml",
+            litellm_config_path=f"{_CONFIG_DIR}/litellm_config.yaml",
+        )
+        # TestClient reports client.host as "testclient", not 127.0.0.1,
+        # so loopback exemption does not apply — auth is enforced.
+        with TestClient(app) as c:
+            resp = c.get("/health/detail")
+            assert resp.status_code == 401
+
+    def test_non_loopback_with_valid_token_passes(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("ECHENEIS_API_KEY", "sk-test")
+        app = create_app(
+            routing_rules_path=f"{_CONFIG_DIR}/routing_rules.yaml",
+            litellm_config_path=f"{_CONFIG_DIR}/litellm_config.yaml",
+        )
+        with TestClient(app) as c:
+            resp = c.get(
+                "/health/detail",
+                headers={"Authorization": "Bearer sk-test"},
+            )
+            assert resp.status_code == 200
+
+    def test_public_health_never_requires_auth(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("ECHENEIS_API_KEY", "sk-test")
+        app = create_app(
+            routing_rules_path=f"{_CONFIG_DIR}/routing_rules.yaml",
+            litellm_config_path=f"{_CONFIG_DIR}/litellm_config.yaml",
+        )
+        with TestClient(app) as c:
+            resp = c.get("/health")
+            assert resp.status_code == 200
+            assert resp.json() == {"status": "ok"}
 
 
 class TestRoutesEndpoint:

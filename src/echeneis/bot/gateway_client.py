@@ -23,8 +23,8 @@ class GatewayClient:
         self._base_url = base_url or os.environ.get(
             "ECHENEIS_GATEWAY_URL", _DEFAULT_GATEWAY_URL
         )
-        master_key = os.environ.get("LITELLM_MASTER_KEY", "")
-        headers = {"Authorization": f"Bearer {master_key}"} if master_key else {}
+        api_key = os.environ.get("ECHENEIS_API_KEY", "")
+        headers = {"Authorization": f"Bearer {api_key}"} if api_key else {}
         self._client = httpx.AsyncClient(
             base_url=self._base_url, timeout=_REQUEST_TIMEOUT, headers=headers
         )
@@ -72,8 +72,8 @@ class GatewayClient:
             raise GatewayError(f"Cannot reach gateway: {e}") from e
 
     async def health(self) -> dict[str, Any]:
-        """Check gateway health status."""
-        resp = await self._client.get("/health")
+        """Check gateway health status (authenticated, includes providers)."""
+        resp = await self._client.get("/health/detail")
         resp.raise_for_status()
         return resp.json()
 

@@ -11,26 +11,44 @@
 set -euo pipefail
 
 INSTALL_DIR="/opt/echeneis"
-GATEWAY_URL="${ECHENEIS_GATEWAY_URL:-http://localhost:4000}"
 
 # shellcheck source=deploy/notify.sh
 source "${INSTALL_DIR}/deploy/notify.sh"
 
-# Load .env so we have LITELLM_MASTER_KEY.
+# Load .env so we have ECHENEIS_API_KEY.
 _load_env
 
 auth_header=()
-if [[ -n "${LITELLM_MASTER_KEY:-}" ]]; then
-    auth_header=(-H "Authorization: Bearer ${LITELLM_MASTER_KEY}")
+if [[ -n "${ECHENEIS_API_KEY:-}" ]]; then
+    auth_header=(-H "Authorization: Bearer ${ECHENEIS_API_KEY}")
 fi
 
-health_json=$(curl -fsS -m 10 "${GATEWAY_URL}/health" 2>/dev/null || echo "")
-models_json=$(curl -fsS -m 10 "${auth_header[@]}" "${GATEWAY_URL}/models" 2>/dev/null || echo "")
+# Try candidate URLs in order: explicit env override, then both host-port
+# mappings we ship (compose default 4000:4000 and the reverse-proxy variant
+# 80:4000). First one that responds wins.
+candidate_urls=()
+if [[ -n "${ECHENEIS_GATEWAY_URL:-}" ]]; then
+    candidate_urls+=("${ECHENEIS_GATEWAY_URL}")
+fi
+candidate_urls+=("http://localhost:4000" "http://localhost:80")
+
+GATEWAY_URL=""
+health_json=""
+for url in "${candidate_urls[@]}"; do
+    resp=$(curl -fsS -m 10 "${auth_header[@]}" "${url}/health/detail" 2>/dev/null || true)
+    if [[ -n "${resp}" ]]; then
+        GATEWAY_URL="${url}"
+        health_json="${resp}"
+        break
+    fi
+done
 
 if [[ -z "${health_json}" ]]; then
-    notify_telegram "⚠️ Echeneis 日報：gateway 無法連線 (${GATEWAY_URL})"
+    notify_telegram "⚠️ Echeneis 日報：gateway 無法連線 (tried: ${candidate_urls[*]})"
     exit 0
 fi
+
+models_json=$(curl -fsS -m 10 "${auth_header[@]}" "${GATEWAY_URL}/models" 2>/dev/null || echo "")
 
 digest=$(python3 - "${health_json}" "${models_json}" <<'PY'
 import json

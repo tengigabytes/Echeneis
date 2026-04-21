@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 
 from echeneis.gateway.classifier import TaskClassifier
 from echeneis.gateway.config import RoutingConfig
@@ -87,14 +87,26 @@ def create_app(
     app = FastAPI(title="Echeneis Gateway", version="0.1.0")
 
     # API key authentication
-    master_key = os.environ.get("LITELLM_MASTER_KEY", "")
+    api_key = os.environ.get("ECHENEIS_API_KEY", "")
+
+    def _is_localhost(request: Request) -> bool:
+        """True if the request originates from loopback (same host)."""
+        client = request.client
+        return bool(client and client.host in {"127.0.0.1", "::1"})
 
     def _check_auth(request: Request) -> None:
-        """Verify Bearer token matches LITELLM_MASTER_KEY."""
-        if not master_key:
+        """Verify Bearer token matches ECHENEIS_API_KEY.
+
+        Requests from loopback (127.0.0.1 / ::1) are exempt so that
+        ops scripts running on the same host can call the gateway
+        without needing the key.
+        """
+        if not api_key:
             return  # No key set — skip auth (local dev)
+        if _is_localhost(request):
+            return
         auth = request.headers.get("authorization", "")
-        if auth != f"Bearer {master_key}":
+        if auth != f"Bearer {api_key}":
             raise HTTPException(status_code=401, detail="Invalid API key")
 
     # Store components on app state for access in routes
@@ -169,11 +181,22 @@ def create_app(
 
     @app.get("/health")
     async def health() -> dict[str, Any]:
-        """Health check endpoint."""
+        """Public liveness probe — intentionally minimal."""
+        return {"status": "ok"}
+
+    @app.get("/health/detail")
+    async def health_detail(request: Request) -> dict[str, Any]:
+        """Authenticated health view with per-provider circuit state."""
+        _check_auth(request)
         return {
             "status": "ok",
             "providers": health_tracker.get_status(),
         }
+
+    @app.get("/robots.txt", include_in_schema=False)
+    async def robots() -> PlainTextResponse:
+        """Block search-engine indexing."""
+        return PlainTextResponse("User-agent: *\nDisallow: /\n")
 
     @app.get("/routes")
     async def routes(request: Request) -> dict[str, Any]:

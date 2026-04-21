@@ -61,7 +61,8 @@ nano .env  # Add your API keys
 
 | Variable | Description |
 |----------|-------------|
-| `LITELLM_MASTER_KEY` | Master key for LiteLLM proxy |
+| `ECHENEIS_API_KEY` | Bearer token required by the gateway on all non-loopback API calls |
+| `LITELLM_MASTER_KEY` | Master key for LiteLLM proxy (only if run standalone) |
 | `GOOGLE_AI_STUDIO_API_KEY` | Google AI Studio API key |
 | `MISTRAL_API_KEY` | Mistral API key |
 | `CEREBRAS_API_KEY` | Cerebras API key |
