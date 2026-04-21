@@ -40,11 +40,14 @@ tiers:
         - nvidia-nemotron-super-49b
         - nvidia-gemma-3-27b
       general_qa:
-        - cerebras-llama-8b
+        # Order chosen so translation-ish prompts that miss the translation
+        # keyword list (e.g. "轉成英文") degrade to an A-tier model rather
+        # than cerebras-llama-8b, which only scored 3/6 on term preservation.
         - nvidia-llama-4-maverick     # 17B×128E MoE, ~0.4s
         - nvidia-mistral-nemotron     # NVIDIA-tuned Mistral, fast + diverse
         - nvidia-nemotron-super-49b
         - groq-llama-70b
+        - cerebras-llama-8b           # last resort: fastest but B-tier quality
       vision:
         - nvidia-gemma-3-27b             # NVIDIA vision backup
         - gemini-2.5-flash
