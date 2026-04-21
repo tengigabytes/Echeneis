@@ -27,12 +27,18 @@ def _get_client() -> GatewayClient:
     return _client
 
 
-def _extract_text(response: dict[str, Any]) -> str:
-    """Extract plain text content from an OpenAI-format completion response."""
-    try:
-        return response["choices"][0]["message"]["content"]
-    except (KeyError, IndexError, TypeError):
-        return "[echeneis error] Unexpected response format"
+async def _stream_to_text(messages: list[dict[str, Any]], **kwargs: Any) -> str:
+    """Consume a streaming completion and return the accumulated text.
+
+    Streaming keeps the upstream HTTP connection emitting bytes, which is
+    required when the gateway is fronted by a Cloudflare proxy enforcing a
+    ~100 s origin idle timeout. MCP tools return a single string to the
+    caller, so the stream is buffered here rather than forwarded.
+    """
+    buf: list[str] = []
+    async for delta in _get_client().chat_stream(messages, **kwargs):
+        buf.append(delta)
+    return "".join(buf) if buf else "[echeneis error] Empty response"
 
 
 @mcp.tool()
@@ -62,8 +68,7 @@ async def delegate_code_task(
     ]
 
     try:
-        resp = await _get_client().chat(messages, max_tokens=max_tokens)
-        return _extract_text(resp)
+        return await _stream_to_text(messages, max_tokens=max_tokens)
     except GatewayError as e:
         return f"[echeneis error] {e}"
 
@@ -95,8 +100,7 @@ async def delegate_translate(
     ]
 
     try:
-        resp = await _get_client().chat(messages)
-        return _extract_text(resp)
+        return await _stream_to_text(messages)
     except GatewayError as e:
         return f"[echeneis error] {e}"
 
@@ -120,10 +124,7 @@ async def delegate_batch(
     ]
 
     try:
-        resp = await _get_client().chat(
-            messages, command="/fast", max_tokens=max_tokens
-        )
-        return _extract_text(resp)
+        return await _stream_to_text(messages, command="/fast", max_tokens=max_tokens)
     except GatewayError as e:
         return f"[echeneis error] {e}"
 

@@ -7,7 +7,6 @@ import pytest
 
 from echeneis.bot.gateway_client import GatewayClient
 from echeneis.mcp.delegate import (
-    _extract_text,
     delegate_batch,
     delegate_code_task,
     delegate_translate,
@@ -15,9 +14,16 @@ from echeneis.mcp.delegate import (
 )
 
 
-def _make_completion(content: str) -> dict:
-    """Build a minimal OpenAI-format completion response."""
-    return {"choices": [{"message": {"content": content}}]}
+def _sse_body(content: str) -> bytes:
+    """Build an SSE body with one delta frame carrying content, then [DONE]."""
+    escaped = json.dumps(content)
+    frames = [
+        f'data: {{"choices":[{{"delta":{{"content":{escaped}}}}}]}}',
+        "",
+        "data: [DONE]",
+        "",
+    ]
+    return ("\n".join(frames) + "\n").encode("utf-8")
 
 
 def _mock_gateway(
@@ -25,14 +31,19 @@ def _mock_gateway(
     status_code: int = 200,
     capture: dict | None = None,
 ) -> GatewayClient:
-    """Create a GatewayClient with a mocked transport."""
+    """Create a GatewayClient whose transport returns an SSE stream."""
 
     def handler(req: httpx.Request) -> httpx.Response:
         if capture is not None:
             capture["body"] = json.loads(req.content)
             capture["url"] = str(req.url)
-        body = _make_completion(response_content)
-        return httpx.Response(status_code, json=body)
+        if status_code >= 400:
+            return httpx.Response(status_code, json={"detail": "fail"})
+        return httpx.Response(
+            status_code,
+            content=_sse_body(response_content),
+            headers={"content-type": "text/event-stream"},
+        )
 
     gw = GatewayClient(base_url="http://test:4000")
     gw._client = httpx.AsyncClient(
@@ -55,23 +66,6 @@ def _inject_client(monkeypatch, gw: GatewayClient) -> None:
     import echeneis.mcp.delegate as mod
 
     mod._client = gw
-
-
-# -- _extract_text ----------------------------------------------------------
-
-
-class TestExtractText:
-    """Tests for the response text extraction helper."""
-
-    def test_extracts_content(self):
-        resp = _make_completion("hello world")
-        assert _extract_text(resp) == "hello world"
-
-    def test_returns_error_on_empty_choices(self):
-        assert "[echeneis error]" in _extract_text({"choices": []})
-
-    def test_returns_error_on_missing_key(self):
-        assert "[echeneis error]" in _extract_text({})
 
 
 # -- delegate_code_task ------------------------------------------------------
@@ -108,18 +102,15 @@ class TestDelegateCodeTask:
         assert captured["body"]["max_tokens"] == 1024
 
     @pytest.mark.asyncio
+    async def test_sets_stream_true(self, monkeypatch):
+        captured: dict = {}
+        _inject_client(monkeypatch, _mock_gateway("ok", capture=captured))
+        await delegate_code_task(prompt="test")
+        assert captured["body"]["stream"] is True
+
+    @pytest.mark.asyncio
     async def test_returns_error_on_gateway_failure(self, monkeypatch):
-        gw = _mock_gateway(status_code=502)
-
-        # Override transport to return a non-2xx response
-        def fail_handler(req: httpx.Request) -> httpx.Response:
-            return httpx.Response(502, json={"detail": "fail"})
-
-        gw._client = httpx.AsyncClient(
-            transport=httpx.MockTransport(fail_handler),
-            base_url="http://test:4000",
-        )
-        _inject_client(monkeypatch, gw)
+        _inject_client(monkeypatch, _mock_gateway(status_code=502))
         result = await delegate_code_task(prompt="test")
         assert "[echeneis error]" in result
 
