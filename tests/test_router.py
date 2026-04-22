@@ -163,3 +163,99 @@ class TestRouting:
                     Classification(task_type="translation", tier="A"),
                     [{"role": "user", "content": "translate hello"}],
                 )
+
+
+class TestModelEntryExtraBody:
+    """Per-model extra_body merges into litellm call kwargs."""
+
+    @pytest.mark.asyncio
+    async def test_extra_body_forwarded_on_route(self) -> None:
+        registry = {
+            "mistral-large-3": ModelEntry(
+                "mistral/mistral-large-latest",
+                api_key="sk-test",
+                extra_body={
+                    "generationConfig": {"thinkingConfig": {"thinkingBudget": 0}}
+                },
+            ),
+            "gemma-4-26b": ModelEntry("gemini/gemma-4-26b-a4b-it", api_key="sk-test"),
+            "cerebras-llama-70b": ModelEntry(
+                "cerebras/llama3.3-70b", api_key="sk-test"
+            ),
+            "groq-llama-70b": ModelEntry(
+                "groq/llama-3.3-70b-versatile", api_key="sk-test"
+            ),
+        }
+        health = HealthTracker(FailoverConfig())
+        router = Router(_TEST_CONFIG, registry, health)
+
+        captured: dict = {}
+
+        async def capture(**kwargs):
+            captured.update(kwargs)
+            return {"choices": [{"message": {"content": "ok"}}]}
+
+        with patch("echeneis.gateway.router.litellm.acompletion", side_effect=capture):
+            await router.route(
+                Classification(task_type="translation", tier="A"),
+                [{"role": "user", "content": "hi"}],
+            )
+
+        assert captured.get("extra_body") == {
+            "generationConfig": {"thinkingConfig": {"thinkingBudget": 0}}
+        }
+
+    def test_caller_kwargs_win_on_top_level_conflict(self) -> None:
+        entry = ModelEntry("x/y", extra_body={"generationConfig": {"a": 1}, "other": 2})
+        kwargs = {"extra_body": {"generationConfig": {"b": 2}}}
+        Router._apply_entry_extras(kwargs, entry)
+        # Caller-supplied generationConfig wins (no deep merge).
+        assert kwargs["extra_body"] == {
+            "generationConfig": {"b": 2},
+            "other": 2,
+        }
+
+    def test_no_extra_body_is_noop(self) -> None:
+        entry = ModelEntry("x/y")
+        kwargs = {"model": "x/y"}
+        Router._apply_entry_extras(kwargs, entry)
+        assert "extra_body" not in kwargs
+
+
+class TestBuildModelRegistry:
+    """litellm_config.yaml parsing surfaces extra_body into ModelEntry."""
+
+    def test_extra_body_parsed(self, tmp_path) -> None:
+        from echeneis.gateway.router import build_model_registry
+
+        cfg = tmp_path / "litellm.yaml"
+        cfg.write_text(
+            "model_list:\n"
+            "  - model_name: gemma-4-31b\n"
+            "    litellm_params:\n"
+            "      model: gemini/gemma-4-31b-it\n"
+            "      extra_body:\n"
+            "        generationConfig:\n"
+            "          thinkingConfig:\n"
+            "            thinkingBudget: 0\n",
+            encoding="utf-8",
+        )
+        reg = build_model_registry(str(cfg))
+        assert reg["gemma-4-31b"].extra_body == {
+            "generationConfig": {"thinkingConfig": {"thinkingBudget": 0}}
+        }
+
+    def test_invalid_extra_body_rejected(self, tmp_path) -> None:
+        from echeneis.gateway.router import build_model_registry
+
+        cfg = tmp_path / "litellm.yaml"
+        cfg.write_text(
+            "model_list:\n"
+            "  - model_name: bad\n"
+            "    litellm_params:\n"
+            "      model: x/y\n"
+            "      extra_body: not-a-dict\n",
+            encoding="utf-8",
+        )
+        with pytest.raises(ValueError, match="must be a mapping"):
+            build_model_registry(str(cfg))

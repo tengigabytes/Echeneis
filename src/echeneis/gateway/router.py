@@ -27,6 +27,7 @@ class ModelEntry:
     litellm_model: str
     api_key: str | None = None
     api_base: str | None = None
+    extra_body: dict[str, Any] | None = None
 
 
 @dataclass
@@ -90,10 +91,18 @@ def build_model_registry(
         api_base_raw = params.get("api_base")
         api_base = os.path.expandvars(api_base_raw) if api_base_raw else None
 
+        extra_body = params.get("extra_body")
+        if extra_body is not None and not isinstance(extra_body, dict):
+            raise ValueError(
+                f"litellm_params.extra_body for {short_name!r} must be a mapping, "
+                f"got {type(extra_body).__name__}"
+            )
+
         registry[short_name] = ModelEntry(
             litellm_model=litellm_model,
             api_key=api_key,
             api_base=api_base,
+            extra_body=extra_body,
         )
 
         # Register rate limits if available
@@ -135,6 +144,19 @@ class Router:
                 f"Available: {list(self._registry.keys())}"
             )
         return entry
+
+    @staticmethod
+    def _apply_entry_extras(call_kwargs: dict[str, Any], entry: ModelEntry) -> None:
+        """Merge per-model defaults from registry into call kwargs (in place).
+
+        Currently merges ``extra_body``, which carries provider-specific
+        params litellm forwards verbatim (e.g. Vertex ``generationConfig``).
+        Caller-supplied keys win on top-level conflicts; nested dicts are
+        not deep-merged.
+        """
+        if entry.extra_body:
+            existing = call_kwargs.get("extra_body") or {}
+            call_kwargs["extra_body"] = {**entry.extra_body, **existing}
 
     def _pick_models(self, classification: Classification) -> list[str]:
         """Pick primary + fallback model names for a classification.
@@ -215,6 +237,7 @@ class Router:
                 call_kwargs["api_key"] = entry.api_key
             if entry.api_base:
                 call_kwargs["api_base"] = entry.api_base
+            self._apply_entry_extras(call_kwargs, entry)
 
             try:
                 response = await litellm.acompletion(**call_kwargs)
@@ -299,6 +322,7 @@ class Router:
             call_kwargs["api_key"] = entry.api_key
         if entry.api_base:
             call_kwargs["api_base"] = entry.api_base
+        self._apply_entry_extras(call_kwargs, entry)
 
         try:
             response = await litellm.acompletion(**call_kwargs)
@@ -386,6 +410,7 @@ class Router:
                 call_kwargs["api_key"] = entry.api_key
             if entry.api_base:
                 call_kwargs["api_base"] = entry.api_base
+            self._apply_entry_extras(call_kwargs, entry)
 
             try:
                 raw_iter = await litellm.acompletion(**call_kwargs)

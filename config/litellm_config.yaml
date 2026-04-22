@@ -4,6 +4,15 @@ model_list:
     litellm_params:
       model: gemini/gemma-4-31b-it
       api_key: os.environ/GOOGLE_AI_STUDIO_API_KEY
+      # Gemma 4 emits chain-of-thought as reasoning_content chunks before
+      # user-visible content. With small max_tokens or long prompts the
+      # reasoning can exhaust the budget before content begins, leaving
+      # the response empty. Disable thinking so the entire budget goes
+      # to the user-facing output.
+      extra_body:
+        generationConfig:
+          thinkingConfig:
+            thinkingBudget: 0
     rate_limits:
       rpm: 15
       rpd: 1500
@@ -12,6 +21,10 @@ model_list:
     litellm_params:
       model: gemini/gemma-4-26b-a4b-it
       api_key: os.environ/GOOGLE_AI_STUDIO_API_KEY
+      extra_body:
+        generationConfig:
+          thinkingConfig:
+            thinkingBudget: 0
     rate_limits:
       rpm: 15
       rpd: 1500
