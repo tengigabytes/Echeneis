@@ -297,15 +297,17 @@ class BenchmarkHarness:
 
             # Rate limit stress test runs once (not per-model)
             if getattr(dim, "run_once", False):
-                await self._emit_progress(ProgressInfo(
-                    total_dimensions=total_dims,
-                    completed_dimensions=completed_dims,
-                    current_dimension=dim.name,
-                    current_model=None,
-                    models_in_dimension=1,
-                    models_done_in_dimension=0,
-                    partial_results=list(results),
-                ))
+                await self._emit_progress(
+                    ProgressInfo(
+                        total_dimensions=total_dims,
+                        completed_dimensions=completed_dims,
+                        current_dimension=dim.name,
+                        current_model=None,
+                        models_in_dimension=1,
+                        models_done_in_dimension=0,
+                        partial_results=list(results),
+                    )
+                )
                 try:
                     result = await dim.run(self)
                     results.append(result)
@@ -319,21 +321,22 @@ class BenchmarkHarness:
 
             # Build list of eligible models for this dimension
             eligible = [
-                m for m in models
-                if not dim.requires_vision or supports_vision(m)
+                m for m in models if not dim.requires_vision or supports_vision(m)
             ]
             models_done = 0
 
             # Emit progress at dimension start
-            await self._emit_progress(ProgressInfo(
-                total_dimensions=total_dims,
-                completed_dimensions=completed_dims,
-                current_dimension=dim.name,
-                current_model=None,
-                models_in_dimension=len(eligible),
-                models_done_in_dimension=0,
-                partial_results=list(results),
-            ))
+            await self._emit_progress(
+                ProgressInfo(
+                    total_dimensions=total_dims,
+                    completed_dimensions=completed_dims,
+                    current_dimension=dim.name,
+                    current_model=None,
+                    models_in_dimension=len(eligible),
+                    models_done_in_dimension=0,
+                    partial_results=list(results),
+                )
+            )
 
             for model in models:
                 if dim.requires_vision and not supports_vision(model):
@@ -356,15 +359,17 @@ class BenchmarkHarness:
                     )
 
                 models_done += 1
-                await self._emit_progress(ProgressInfo(
-                    total_dimensions=total_dims,
-                    completed_dimensions=completed_dims,
-                    current_dimension=dim.name,
-                    current_model=model,
-                    models_in_dimension=len(eligible),
-                    models_done_in_dimension=models_done,
-                    partial_results=list(results),
-                ))
+                await self._emit_progress(
+                    ProgressInfo(
+                        total_dimensions=total_dims,
+                        completed_dimensions=completed_dims,
+                        current_dimension=dim.name,
+                        current_model=model,
+                        models_in_dimension=len(eligible),
+                        models_done_in_dimension=models_done,
+                        partial_results=list(results),
+                    )
+                )
 
             completed_dims += 1
 
