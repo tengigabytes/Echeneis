@@ -109,8 +109,6 @@ _SHORT_NAMES: dict[str, str] = {
     "groq-llama-4-scout": "groq-scout",
     "mistral-large-3": "mistral-lg",
     "mistral-small-3.1": "mistral-sm",
-    "or-gemini-flash-lite": "or-flash",
-    "or-nemotron-120b": "or-nemo",
     "gemma-4-31b": "gemma-31b",
     "gemma-4-26b": "gemma-26b",
     "github-gpt-4o": "gh-gpt4o",

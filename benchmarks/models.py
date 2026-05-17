@@ -12,7 +12,6 @@ VISION_MODELS: set[str] = {
     "gemma-4-31b",
     "gemma-4-26b",
     "mistral-large-3",
-    "or-gemini-flash-lite",
     "gemini-2.5-flash",
     "gemini-2.0-flash",
     "github-gpt-4o",

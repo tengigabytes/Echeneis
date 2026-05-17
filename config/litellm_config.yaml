@@ -78,23 +78,6 @@ model_list:
       rpm: 15
       rpd: 150
 
-  # --- OpenRouter (free tier — all models share 50 RPD) ---
-  - model_name: or-gemini-flash-lite
-    litellm_params:
-      model: openrouter/google/gemini-3.1-flash-lite-preview
-      api_key: os.environ/OPENROUTER_API_KEY
-    rate_limits:
-      rpm: 20
-      rpd: 50
-
-  - model_name: or-nemotron-120b
-    litellm_params:
-      model: openrouter/nvidia/nemotron-3-super-120b-a12b:free
-      api_key: os.environ/OPENROUTER_API_KEY
-    rate_limits:
-      rpm: 20
-      rpd: 50
-
   # --- NVIDIA NIM (build.nvidia.com, rate-limit-based trial, no credit cap) ---
   - model_name: nvidia-nemotron-super-49b
     litellm_params:
@@ -103,22 +86,6 @@ model_list:
     rate_limits:
       rpm: 40
       rpd: 0  # no published daily cap
-
-  - model_name: nvidia-devstral-123b
-    litellm_params:
-      model: nvidia_nim/mistralai/devstral-2-123b-instruct-2512
-      api_key: os.environ/NVIDIA_API_KEY
-    rate_limits:
-      rpm: 40
-      rpd: 0
-
-  - model_name: nvidia-gemma-3-27b
-    litellm_params:
-      model: nvidia_nim/google/gemma-3-27b-it
-      api_key: os.environ/NVIDIA_API_KEY
-    rate_limits:
-      rpm: 40
-      rpd: 0
 
   - model_name: nvidia-mistral-large-3
     litellm_params:

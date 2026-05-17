@@ -27,18 +27,14 @@ tiers:
     # single provider's outage never breaks the entire task.
     fallback:
       translation:
-        - nvidia-devstral-123b   # NVIDIA -Mistral family, diff endpoint
         - gemma-4-31b                    # Google AI Studio
-        - nvidia-gemma-3-27b             # NVIDIA -Google variant
+        - mistral-small-3.1              # Mistral fallback, 6/6 term preservation
       code_generation:
         - mistral-large-3
         - nvidia-nemotron-super-49b  # NVIDIA -A-tier reasoning
-        - nvidia-gemma-3-27b
       code_review:
         - mistral-large-3
-        - nvidia-devstral-123b        # NVIDIA -coding specialist 123B
         - nvidia-nemotron-super-49b
-        - nvidia-gemma-3-27b
       general_qa:
         # Order chosen so translation-ish prompts that miss the translation
         # keyword list (e.g. "轉成英文") degrade to an A-tier model rather
@@ -49,7 +45,6 @@ tiers:
         - groq-llama-70b
         - cerebras-llama-8b           # last resort: fastest but B-tier quality
       vision:
-        - nvidia-gemma-3-27b             # NVIDIA vision backup
         - gemini-2.5-flash
         - gemma-4-26b
 
@@ -68,7 +63,7 @@ tiers:
         - groq-llama-4-scout
       summarization:
         - groq-llama-70b
-        - nvidia-gemma-3-27b
+        - groq-llama-4-scout
 
 task_types:
   - name: translation
