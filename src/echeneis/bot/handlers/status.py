@@ -110,15 +110,33 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     quotas = await get_quota_status(gateway)
     if quotas:
         parts.append("📊 <b>配額</b>")
-        quotas.sort(key=lambda q: -q["pct"])
+        # Order: most-utilised first, fully uncapped (pct=None) last.
+        quotas.sort(key=lambda q: (q["pct"] is None, -(q["pct"] or 0)))
         name_w = max(len(q["model"]) for q in quotas)
         q_lines: list[str] = []
         for q in quotas:
-            icon = "🔴" if q["pct"] >= 90 else "🟡" if q["pct"] >= 70 else "🟢"
+            pct = q["pct"]
+            if pct is None:
+                icon = "🔵"  # no cap declared on either dimension
+            elif pct >= 90:
+                icon = "🔴"
+            elif pct >= 70:
+                icon = "🟡"
+            else:
+                icon = "🟢"
+            rpd_str = (
+                f"RPD {q['used_rpd']}/{q['limit_rpd']}"
+                if q["limit_rpd"]
+                else f"RPD {q['used_rpd']}/—"
+            )
+            rpm_str = (
+                f"RPM {q['used_rpm']}/{q['limit_rpm']}"
+                if q["limit_rpm"]
+                else f"RPM {q['used_rpm']}/—"
+            )
+            pct_str = f" ({pct:.0f}%)" if pct is not None else ""
             q_lines.append(
-                f"{icon} {q['model']:<{name_w}} "
-                f"{q['used_rpd']:>4}/{q['limit_rpd']:<5} "
-                f"({q['pct']:.0f}%)"
+                f"{icon} {q['model']:<{name_w}}  {rpd_str}  {rpm_str}{pct_str}"
             )
         parts.append("<pre>" + "\n".join(q_lines) + "</pre>")
 

@@ -131,8 +131,16 @@ def _parse_host_meminfo(proc_path: str) -> dict[str, int]:
 async def get_quota_status(gateway: GatewayClient) -> list[dict[str, Any]]:
     """Fetch per-model quota usage from the gateway.
 
+    Returns one entry per configured model. Both RPD and RPM caps are
+    reported; ``pct`` is the higher of the two utilisations so a single
+    number reflects the binding limit. A cap value of 0 means "no limit
+    declared for this dimension" (e.g. Mistral and NVIDIA NIM models that
+    only publish a monthly token cap). ``pct`` is ``None`` only when both
+    caps are 0.
+
     Returns:
-        List of dicts with model, used_rpd, limit_rpd, pct.
+        List of dicts with model, used_rpd, limit_rpd, used_rpm,
+        limit_rpm, rpd_pct, rpm_pct, pct.
     """
     try:
         data = await gateway.models()
@@ -142,17 +150,26 @@ async def get_quota_status(gateway: GatewayClient) -> list[dict[str, Any]]:
     quotas: list[dict[str, Any]] = []
     for m in data.get("models", []):
         usage = m.get("usage", {})
-        limit_rpd = usage.get("limit_rpd", 0)
-        if not limit_rpd:
-            continue
         used_rpd = usage.get("used_rpd", 0)
-        pct = (used_rpd / limit_rpd * 100) if limit_rpd else 0
+        limit_rpd = usage.get("limit_rpd", 0)
+        used_rpm = usage.get("used_rpm", 0)
+        limit_rpm = usage.get("limit_rpm", 0)
+
+        rpd_pct = (used_rpd / limit_rpd * 100) if limit_rpd else None
+        rpm_pct = (used_rpm / limit_rpm * 100) if limit_rpm else None
+        pcts = [p for p in (rpd_pct, rpm_pct) if p is not None]
+        pct = max(pcts) if pcts else None
+
         quotas.append(
             {
                 "model": m["name"],
                 "used_rpd": used_rpd,
                 "limit_rpd": limit_rpd,
-                "pct": round(pct, 1),
+                "used_rpm": used_rpm,
+                "limit_rpm": limit_rpm,
+                "rpd_pct": round(rpd_pct, 1) if rpd_pct is not None else None,
+                "rpm_pct": round(rpm_pct, 1) if rpm_pct is not None else None,
+                "pct": round(pct, 1) if pct is not None else None,
             }
         )
     return quotas
@@ -243,13 +260,23 @@ class SystemMonitor:
                 f"({vm['disk_pct']:.0f}%)"
             )
 
-        # Provider quota
+        # Provider quota — alert on the binding cap (RPD or RPM, whichever
+        # is higher utilised). Uncapped models (pct is None) cannot trigger.
         quotas = await get_quota_status(self._gateway)
         for q in quotas:
-            if q["pct"] >= _QUOTA_WARN_PCT:
-                key = f"quota_{q['model']}"
-                if self._should_alert(key):
-                    await send_telegram(
-                        f"💀 {q['model']} 配額即將耗盡\n"
-                        f"RPD: {q['used_rpd']}/{q['limit_rpd']} ({q['pct']:.0f}%)"
-                    )
+            pct = q["pct"]
+            if pct is None or pct < _QUOTA_WARN_PCT:
+                continue
+            key = f"quota_{q['model']}"
+            if not self._should_alert(key):
+                continue
+            lines = [f"💀 {q['model']} 配額即將耗盡"]
+            if q["limit_rpd"]:
+                lines.append(
+                    f"RPD: {q['used_rpd']}/{q['limit_rpd']} ({q['rpd_pct']:.0f}%)"
+                )
+            if q["limit_rpm"]:
+                lines.append(
+                    f"RPM: {q['used_rpm']}/{q['limit_rpm']} ({q['rpm_pct']:.0f}%)"
+                )
+            await send_telegram("\n".join(lines))
