@@ -112,6 +112,7 @@ _SHORT_NAMES: dict[str, str] = {
     "gemma-4-31b": "gemma-31b",
     "gemma-4-26b": "gemma-26b",
     "github-gpt-4o": "gh-gpt4o",
+    "gemini-3.1-flash-lite": "gem-3.1-lt",
     "gemini-2.5-flash": "gem-flash",
     "gemini-2.0-flash": "gem-2.0",
 }

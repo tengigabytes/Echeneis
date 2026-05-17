@@ -45,6 +45,7 @@ tiers:
         - groq-llama-70b
         - cerebras-llama-8b           # last resort: fastest but B-tier quality
       vision:
+        - gemini-3.1-flash-lite          # ~1s, multimodal, A-tier quality
         - gemini-2.5-flash
         - gemma-4-26b
 

@@ -112,6 +112,14 @@ model_list:
       rpd: 0
 
   # --- Gemini API ---
+  - model_name: gemini-3.1-flash-lite
+    litellm_params:
+      model: gemini/gemini-3.1-flash-lite
+      api_key: os.environ/GOOGLE_AI_STUDIO_API_KEY
+    rate_limits:
+      rpm: 15
+      rpd: 500
+
   - model_name: gemini-2.5-flash
     litellm_params:
       model: gemini/gemini-2.5-flash-preview-04-17
