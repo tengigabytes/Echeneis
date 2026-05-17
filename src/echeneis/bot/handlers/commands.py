@@ -267,12 +267,20 @@ async def models_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         quota_parts = []
         rem_rpm = usage.get("remaining_rpm")
         rem_rpd = usage.get("remaining_rpd")
+        used_rpm = usage.get("used_rpm", 0)
+        used_rpd = usage.get("used_rpd", 0)
         limit_rpm = usage.get("limit_rpm", 0)
         limit_rpd = usage.get("limit_rpd", 0)
+        # Show remaining when a cap exists, otherwise show used-only so
+        # uncapped models (Mistral, NVIDIA NIM, Cloudflare) aren't blank.
         if limit_rpm:
             quota_parts.append(f"{rem_rpm}/{limit_rpm} rpm")
+        elif used_rpm:
+            quota_parts.append(f"{used_rpm} rpm used")
         if limit_rpd:
             quota_parts.append(f"{rem_rpd}/{limit_rpd} rpd")
+        elif used_rpd:
+            quota_parts.append(f"{used_rpd} rpd used")
         quota = f"  [{', '.join(quota_parts)}]" if quota_parts else ""
         lines.append(f"  {status} {m['name']}{key_hint}{quota}")
 

@@ -151,3 +151,28 @@ async def test_whois_unknown_shows_unregistered():
     text = update.message.reply_text.call_args[0][0]
     assert "777" in text
     assert "未註冊" in text
+
+
+@pytest.mark.asyncio
+async def test_whois_includes_usage_counts():
+    """/whois must surface 1d/7d/all usage so admins can size each user."""
+    import time
+
+    from echeneis.bot.user_usage import record_usage
+
+    get_store().add_guest(400, name="Alice", added_by=ADMIN_ID)
+    # Three entries spanning the windows: today, 3 days ago, 30 days ago.
+    now = time.time()
+    record_usage(400, "gemma-4-31b", ts=now)
+    record_usage(400, "gemma-4-31b", ts=now - 3 * 86400)
+    record_usage(400, "gemma-4-31b", ts=now - 30 * 86400)
+
+    update, ctx = _mk_update(ADMIN_ID, ["400"])
+    await whois_command(update, ctx)
+    text = update.message.reply_text.call_args[0][0]
+
+    # 1d=1 (today), 7d=2 (today + 3d ago), all=3.
+    assert "用量" in text
+    assert "1d <b>1</b>" in text
+    assert "7d <b>2</b>" in text
+    assert "all <b>3</b>" in text

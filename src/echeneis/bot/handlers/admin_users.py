@@ -20,6 +20,7 @@ from telegram.ext import ContextTypes
 from echeneis.bot.audit import log_admin_action
 from echeneis.bot.middleware import require_admin
 from echeneis.bot.user_store import Role, get_store
+from echeneis.bot.user_usage import user_row
 
 logger = logging.getLogger(__name__)
 
@@ -271,5 +272,12 @@ async def whois_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         if record and record.get("banned"):
             lines.append("（guest 紀錄存在但已停用）")
 
-    # Phase 6.4 will extend this with 7-day usage counts.
+    # Usage stats — pulled from state/user_usage.jsonl + summary snapshot.
+    counts = user_row(uid)
+    lines.append(
+        f"用量：1d <b>{counts['1d']}</b> · "
+        f"7d <b>{counts['7d']}</b> · "
+        f"all <b>{counts['all']}</b>"
+    )
+
     await update.message.reply_text("\n".join(lines), parse_mode="HTML")
