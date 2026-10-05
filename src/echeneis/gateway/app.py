@@ -122,7 +122,15 @@ def create_app(
     classifier = TaskClassifier(routing_config)
     router = Router(routing_config, model_registry, health_tracker, usage_tracker)
 
-    app = FastAPI(title="Echeneis Gateway", version="0.1.0")
+    # Interactive docs and the schema are disabled: they bypass bearer auth
+    # and would advertise the endpoint list to anyone reaching the port.
+    app = FastAPI(
+        title="Echeneis Gateway",
+        version="0.1.0",
+        docs_url=None,
+        redoc_url=None,
+        openapi_url=None,
+    )
 
     # API key authentication
     api_key = os.environ.get("ECHENEIS_API_KEY", "")
