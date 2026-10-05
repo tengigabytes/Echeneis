@@ -104,6 +104,28 @@ sudo cloudflared service install <YOUR_TUNNEL_TOKEN>
 
 This creates a systemd service that auto-starts on boot.
 
+### Alternative: proxied DNS record with an origin lock
+
+If the gateway hostname is a proxied (orange-cloud) DNS record pointing at
+the VM instead of a tunnel, the published port is also reachable directly
+by IP, bypassing Cloudflare. Restrict it to Cloudflare's edge ranges:
+
+```bash
+# Apply now (not persistent — a reboot clears it)
+sudo bash /opt/echeneis/deploy/cf-origin-lock.sh apply
+
+# Confirm the hostname still answers and the bare IP no longer does,
+# then make it persistent
+sudo cp /opt/echeneis/deploy/echeneis-cf-lock.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now echeneis-cf-lock
+```
+
+The rules live in the `DOCKER-USER` chain because Docker-published ports
+bypass `INPUT`. Undo with `sudo bash deploy/cf-origin-lock.sh remove`.
+The range list in the script is a snapshot of
+<https://www.cloudflare.com/ips-v4>; refresh it if Cloudflare adds ranges.
+
 ## 5. Install and Start
 
 ```bash

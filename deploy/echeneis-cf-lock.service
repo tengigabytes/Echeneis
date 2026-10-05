@@ -1,0 +1,15 @@
+[Unit]
+Description=Echeneis gateway port restricted to Cloudflare edge IPs
+After=docker.service
+Requires=docker.service
+
+[Service]
+# iptables rules added to DOCKER-USER do not survive a reboot, so they are
+# re-applied here once Docker has created the chain.
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/bin/bash /opt/echeneis/deploy/cf-origin-lock.sh apply
+ExecStop=/usr/bin/bash /opt/echeneis/deploy/cf-origin-lock.sh remove
+
+[Install]
+WantedBy=multi-user.target
