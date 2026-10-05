@@ -17,47 +17,32 @@ model_list:
       rpd: 1500
 
   # --- Mistral ---
-  - model_name: mistral-large-3
+  # Only Codestral is reachable on this account tier; the general chat
+  # models (large/small/medium) return tier_not_allowed or a 0 RPM limit.
+  - model_name: mistral-codestral
     litellm_params:
-      model: mistral/mistral-large-latest
+      model: mistral/codestral-latest
       api_key: os.environ/MISTRAL_API_KEY
     rate_limits:
       rpm: 60
-      rpd: 0  # 1B tokens/month, not RPD-limited
-
-  - model_name: mistral-small-3.1
-    litellm_params:
-      model: mistral/mistral-small-latest
-      api_key: os.environ/MISTRAL_API_KEY
-    rate_limits:
-      rpm: 60
-      rpd: 0
-
-  # --- Cerebras ---
-  - model_name: cerebras-llama-8b
-    litellm_params:
-      model: cerebras/llama3.1-8b
-      api_key: os.environ/CEREBRAS_API_KEY
-    rate_limits:
-      rpm: 30
-      rpd: 14400
+      rpd: 0  # token-limited per minute, not RPD-limited
 
   # --- Groq ---
-  - model_name: groq-llama-4-scout
+  - model_name: groq-gpt-oss-120b
     litellm_params:
-      model: groq/meta-llama/llama-4-scout-17b-16e-instruct
+      model: groq/openai/gpt-oss-120b
       api_key: os.environ/GROQ_API_KEY
     rate_limits:
       rpm: 30
-      rpd: 14400
+      rpd: 1000  # also capped at 8K tokens/min
 
-  - model_name: groq-llama-70b
+  - model_name: groq-gpt-oss-20b
     litellm_params:
-      model: groq/llama-3.3-70b-versatile
+      model: groq/openai/gpt-oss-20b
       api_key: os.environ/GROQ_API_KEY
     rate_limits:
       rpm: 30
-      rpd: 1000
+      rpd: 1000  # also capped at 8K tokens/min
 
   # --- Cloudflare Workers AI ---
   - model_name: cf-llama-3-70b
@@ -79,33 +64,17 @@ model_list:
       rpd: 150
 
   # --- NVIDIA NIM (build.nvidia.com, rate-limit-based trial, no credit cap) ---
-  - model_name: nvidia-nemotron-super-49b
+  - model_name: nvidia-nemotron-3-super-120b
     litellm_params:
-      model: nvidia_nim/nvidia/llama-3.3-nemotron-super-49b-v1.5
+      model: nvidia_nim/nvidia/nemotron-3-super-120b-a12b
       api_key: os.environ/NVIDIA_API_KEY
     rate_limits:
       rpm: 40
       rpd: 0  # no published daily cap
 
-  - model_name: nvidia-mistral-large-3
+  - model_name: nvidia-nemotron-3-ultra-550b
     litellm_params:
-      model: nvidia_nim/mistralai/mistral-large-3-675b-instruct-2512
-      api_key: os.environ/NVIDIA_API_KEY
-    rate_limits:
-      rpm: 40
-      rpd: 0
-
-  - model_name: nvidia-mistral-nemotron
-    litellm_params:
-      model: nvidia_nim/mistralai/mistral-nemotron
-      api_key: os.environ/NVIDIA_API_KEY
-    rate_limits:
-      rpm: 40
-      rpd: 0
-
-  - model_name: nvidia-llama-4-maverick
-    litellm_params:
-      model: nvidia_nim/meta/llama-4-maverick-17b-128e-instruct
+      model: nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b
       api_key: os.environ/NVIDIA_API_KEY
     rate_limits:
       rpm: 40
@@ -120,21 +89,21 @@ model_list:
       rpm: 15
       rpd: 500
 
-  - model_name: gemini-2.5-flash
+  - model_name: gemini-3.5-flash-lite
     litellm_params:
-      model: gemini/gemini-2.5-flash-preview-04-17
-      api_key: os.environ/GEMINI_API_KEY
-    rate_limits:
-      rpm: 10
-      rpd: 500
-
-  - model_name: gemini-2.0-flash
-    litellm_params:
-      model: gemini/gemini-2.0-flash
-      api_key: os.environ/GEMINI_API_KEY
+      model: gemini/gemini-3.5-flash-lite
+      api_key: os.environ/GOOGLE_AI_STUDIO_API_KEY
     rate_limits:
       rpm: 15
-      rpd: 1500
+      rpd: 500
+
+  - model_name: gemini-3.5-flash
+    litellm_params:
+      model: gemini/gemini-3.5-flash
+      api_key: os.environ/GOOGLE_AI_STUDIO_API_KEY
+    rate_limits:
+      rpm: 10
+      rpd: 250
 
 general_settings:
   master_key: os.environ/LITELLM_MASTER_KEY

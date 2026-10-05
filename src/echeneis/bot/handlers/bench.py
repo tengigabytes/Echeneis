@@ -36,8 +36,8 @@ _HELP_TEXT = (
     "範例：\n"
     "  /bench — 全部維度 × 全部模型\n"
     "  /bench latency — 只跑延遲測試\n"
-    "  /bench latency groq-llama-70b — 特定維度+模型\n"
-    "  /bench all groq-llama-70b — 全部維度，指定模型"
+    "  /bench latency groq-gpt-oss-120b — 特定維度+模型\n"
+    "  /bench all groq-gpt-oss-120b — 全部維度，指定模型"
 )
 
 _VALID_DIMENSIONS = {
@@ -104,17 +104,17 @@ def _format_progress(info, dimension_names: list[str]) -> str:
 
 # Short display names for models — keeps <pre> columns compact.
 _SHORT_NAMES: dict[str, str] = {
-    "cerebras-llama-8b": "cb-8b",
-    "groq-llama-70b": "groq-70b",
-    "groq-llama-4-scout": "groq-scout",
-    "mistral-large-3": "mistral-lg",
-    "mistral-small-3.1": "mistral-sm",
+    "groq-gpt-oss-120b": "groq-120b",
+    "groq-gpt-oss-20b": "groq-20b",
+    "mistral-codestral": "codestral",
+    "nvidia-nemotron-3-super-120b": "nv-super",
+    "nvidia-nemotron-3-ultra-550b": "nv-ultra",
     "gemma-4-31b": "gemma-31b",
     "gemma-4-26b": "gemma-26b",
     "github-gpt-4o": "gh-gpt4o",
     "gemini-3.1-flash-lite": "gem-3.1-lt",
-    "gemini-2.5-flash": "gem-flash",
-    "gemini-2.0-flash": "gem-2.0",
+    "gemini-3.5-flash-lite": "gem-3.5-lt",
+    "gemini-3.5-flash": "gem-3.5",
 }
 
 # Per-dimension emoji for section headers.

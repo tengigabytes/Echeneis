@@ -160,10 +160,10 @@ Alerts have a 1-hour cooldown per category to prevent flooding.
 
 🌐 Gateway
 ✅ gemma-4-31b
-✅ groq-llama-70b
+✅ groq-gpt-oss-120b
 
 📊 配額
-🟢 groq-llama-70b     120/1000  (12%)
+🟢 groq-gpt-oss-120b     120/1000  (12%)
 🟢 gemma-4-31b         45/1500  (3%)
 
 ⏱ 運行 3d 14h 22m
@@ -276,8 +276,8 @@ rate limit stress). Results are saved to `benchmarks/results/results.jsonl`.
 ```
 /bench                              # all dimensions × all models
 /bench latency                      # single dimension
-/bench latency groq-llama-70b       # specific dimension + model
-/bench all groq-llama-70b           # all dimensions, one model
+/bench latency groq-gpt-oss-120b       # specific dimension + model
+/bench all groq-gpt-oss-120b           # all dimensions, one model
 ```
 
 Progress is reported in real-time during the run, and the final report

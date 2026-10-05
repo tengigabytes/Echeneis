@@ -4,9 +4,29 @@ These guard against regressions where a fallback chain ordering would
 silently route a translation-ish prompt to a B-tier translator.
 """
 
+import yaml
+
 from echeneis.gateway.config import RoutingConfig
 
 _PROD = RoutingConfig.from_yaml("config/routing_rules.yaml")
+
+with open("config/litellm_config.yaml", encoding="utf-8") as _f:
+    _REGISTERED = {m["model_name"] for m in yaml.safe_load(_f)["model_list"]}
+
+
+class TestRoutedModelsAreRegistered:
+    def test_every_routed_model_exists_in_litellm_config(self) -> None:
+        # A model renamed or retired in litellm_config.yaml but still named
+        # in a routing chain fails only at request time, as a wasted hop.
+        routed: set[str] = set()
+        for tier in _PROD.tiers.values():
+            routed.update(tier.models.values())
+            for task in tier.models:
+                routed.update(tier.get_fallback_chain(task))
+            if isinstance(tier.fallback, list):
+                routed.update(tier.fallback)
+        missing = routed - _REGISTERED
+        assert not missing, f"routed but not registered: {sorted(missing)}"
 
 
 class TestGeneralQaFallbackQuality:

@@ -43,7 +43,6 @@ graph TD
     subgraph Providers
         GAS[Google AI Studio]
         MIS[Mistral]
-        CER[Cerebras]
         GRQ[Groq]
         CF[Cloudflare Workers AI]
         GH[GitHub Models]
@@ -68,7 +67,6 @@ graph TD
 
     FO --> GAS
     FO --> MIS
-    FO --> CER
     FO --> GRQ
     FO --> CF
     FO --> GH
@@ -82,14 +80,13 @@ graph TD
 | Provider | Model Families |
 |----------|---------------|
 | Google AI Studio | Gemma 4 (31B, 26B MoE) |
-| Mistral | Mistral Large, Mistral Small |
-| Cerebras | Llama |
-| Groq | Llama 4, Llama 3 |
+| Mistral | Codestral |
+| Groq | GPT-OSS (120B, 20B) |
 | Cloudflare Workers AI | 47+ open models |
 | GitHub Models | GPT-4o |
 | OpenRouter | Various open models |
-| Gemini API | Gemini |
-| NVIDIA NIM | Nemotron Super, Mistral Large 3, Mistral Nemotron, Llama 4 Maverick, Gemma 3, Devstral |
+| Gemini API | Gemini Flash, Flash Lite |
+| NVIDIA NIM | Nemotron 3 Super, Nemotron 3 Ultra |
 
 ## Tiered Routing
 
@@ -99,7 +96,7 @@ graph TD
 | A | General: translation, Q&A, code generation | Default |
 | B | Batch processing, format conversion, labeling | `/fast` command or batch API |
 
-Within each tier, tasks are routed to specific models by type (e.g., translation → Mistral, code → Gemma 4). Failover to backup models in the same tier occurs only when rate limits are reached.
+Within each tier, tasks are routed to specific models by type (e.g., code → Gemma 4, batch → GPT-OSS). Failover to backup models in the same tier occurs only when rate limits are reached.
 
 ## Quick Start
 
@@ -172,8 +169,8 @@ pytest benchmarks/ -k "groq"                             # filter by model name
 ```
 /bench                              # all dimensions × all models
 /bench latency                      # single dimension
-/bench latency groq-llama-70b       # specific dimension + model
-/bench all groq-llama-70b           # all dimensions, one model
+/bench latency groq-gpt-oss-120b    # specific dimension + model
+/bench all groq-gpt-oss-120b        # all dimensions, one model
 ```
 
 Progress is reported in real-time during the run, and the final report is pushed when complete. Results are saved to `benchmarks/results/results.jsonl` for historical comparison.

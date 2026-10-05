@@ -7,9 +7,9 @@ tiers:
     models:
       reasoning: gemma-4-31b
     fallback:
-      - nvidia-mistral-large-3       # NVIDIA NIM 675B flagship (S-tier quality)
-      - nvidia-nemotron-super-49b    # NVIDIA NIM (40 RPM, no credit cap)
-      - gemini-2.5-flash
+      - nvidia-nemotron-3-ultra-550b  # NVIDIA NIM flagship (40 RPM, no credit cap)
+      - gemini-3.5-flash
+      - nvidia-nemotron-3-super-120b
       - github-gpt-4o
 
   A:
@@ -17,7 +17,7 @@ tiers:
     trigger:
       - default: true
     models:
-      translation: mistral-large-3      # ~1.2s p50, 6/6 term preservation
+      translation: gemma-4-31b          # 6/6 term preservation
       code_generation: gemma-4-31b       # dense -deep attention for code
       code_review: gemma-4-31b           # dense -focused analysis
       general_qa: gemma-4-31b
@@ -27,26 +27,27 @@ tiers:
     # single provider's outage never breaks the entire task.
     fallback:
       translation:
-        - gemma-4-31b                    # Google AI Studio
-        - mistral-small-3.1              # Mistral fallback, 6/6 term preservation
+        - nvidia-nemotron-3-super-120b   # NVIDIA NIM
+        - gemini-3.5-flash
+        - groq-gpt-oss-120b
       code_generation:
-        - mistral-large-3
-        - nvidia-nemotron-super-49b  # NVIDIA -A-tier reasoning
+        - mistral-codestral              # Mistral code specialist, ~0.5s
+        - nvidia-nemotron-3-super-120b
+        - groq-gpt-oss-120b
       code_review:
-        - mistral-large-3
-        - nvidia-nemotron-super-49b
+        - nvidia-nemotron-3-super-120b
+        - gemini-3.5-flash
+        - groq-gpt-oss-120b
       general_qa:
-        # Order chosen so translation-ish prompts that miss the translation
-        # keyword list (e.g. "轉成英文") degrade to an A-tier model rather
-        # than cerebras-llama-8b, which only scored 3/6 on term preservation.
-        - nvidia-llama-4-maverick     # 17B×128E MoE, ~0.4s
-        - nvidia-mistral-nemotron     # NVIDIA-tuned Mistral, fast + diverse
-        - nvidia-nemotron-super-49b
-        - groq-llama-70b
-        - cerebras-llama-8b           # last resort: fastest but B-tier quality
+        # Translation-ish prompts that miss the translation keyword list
+        # (e.g. "轉成英文") land here, so the chain leads with the largest
+        # models and keeps the small ones last.
+        - groq-gpt-oss-120b              # ~0.4s
+        - nvidia-nemotron-3-super-120b
+        - gemini-3.5-flash
+        - gemini-3.5-flash-lite          # last resort: fast but small
       vision:
         - gemini-3.1-flash-lite          # ~1s, multimodal, A-tier quality
-        - gemini-2.5-flash
         - gemma-4-26b
 
   B:
@@ -56,15 +57,15 @@ tiers:
       - classifier: low_complexity
       - batch_api: true
     models:
-      batch: groq-llama-70b
+      batch: groq-gpt-oss-120b
       summarization: gemma-4-26b         # MoE -good throughput for summaries
     fallback:
       batch:
-        - cerebras-llama-8b
-        - groq-llama-4-scout
+        - gemini-3.5-flash-lite
+        - groq-gpt-oss-20b
       summarization:
-        - groq-llama-70b
-        - groq-llama-4-scout
+        - groq-gpt-oss-120b
+        - gemini-3.5-flash-lite
 
 task_types:
   - name: translation
