@@ -32,6 +32,14 @@ _LATENCY_WARN_MS = 30_000  # p95 > 30s
 _ALERT_COOLDOWN = 3600  # 1 hour
 _CHECK_INTERVAL = 300  # 5 minutes
 
+# Daily active probe — catches models retired upstream, which the circuit
+# breaker only cycles open/half-open on and never reports.
+_PROBE_INTERVAL = 86400  # 24 hours
+_PROBE_STARTUP_DELAY = 600  # let the gateway settle after a deploy
+_PROBE_RETRY_DELAY = 600  # re-check failures once to filter transient errors
+_PROBE_TIMEOUT_S = 60.0
+_PROBE_MAX_TOKENS = 5
+
 # Host /proc mounted at this path inside the container.
 _HOST_PROC = "/host/proc"
 
@@ -189,6 +197,54 @@ async def get_gateway_latency(gateway: GatewayClient) -> float | None:
         return None
 
 
+async def _probe_failed(gateway: GatewayClient, model_name: str) -> bool:
+    """Send a minimal direct request; True if the model did not answer."""
+    try:
+        await asyncio.wait_for(
+            gateway.chat(
+                messages=[{"role": "user", "content": "ok"}],
+                model=model_name,
+                max_tokens=_PROBE_MAX_TOKENS,
+            ),
+            timeout=_PROBE_TIMEOUT_S,
+        )
+    except (asyncio.TimeoutError, GatewayError):
+        return True
+    return False
+
+
+async def find_failing_models(
+    gateway: GatewayClient, retry_delay: float = _PROBE_RETRY_DELAY
+) -> list[str]:
+    """Probe every keyed model and return those that fail twice in a row.
+
+    Models without an API key are skipped (a known configuration state,
+    not an outage). Circuit state is ignored on purpose: a model whose
+    circuit is open is exactly the kind this check exists to report.
+
+    Args:
+        gateway: Client for the running gateway.
+        retry_delay: Seconds to wait before re-probing first-round failures.
+
+    Returns:
+        Names of models that failed both the initial probe and the retry.
+    """
+    try:
+        data = await gateway.models()
+    except GatewayError:
+        return []
+
+    targets = [m["name"] for m in data.get("models", []) if m.get("has_key")]
+    failed = await asyncio.gather(*(_probe_failed(gateway, m) for m in targets))
+    suspects = [m for m, bad in zip(targets, failed) if bad]
+    if not suspects:
+        return []
+
+    await asyncio.sleep(retry_delay)
+    failed = await asyncio.gather(*(_probe_failed(gateway, m) for m in suspects))
+    return [m for m, bad in zip(suspects, failed) if bad]
+
+
 # ---------------------------------------------------------------------------
 # Background Monitor
 # ---------------------------------------------------------------------------
@@ -201,17 +257,39 @@ class SystemMonitor:
         self._gateway = gateway
         self._last_alert: dict[str, float] = {}
         self._task: asyncio.Task | None = None
+        self._probe_task: asyncio.Task | None = None
 
     def start(self) -> None:
-        """Start the background monitoring loop."""
+        """Start the background monitoring loops."""
         if self._task is None or self._task.done():
             self._task = asyncio.create_task(self._loop())
             logger.info("System monitor started (interval=%ds)", _CHECK_INTERVAL)
+        if self._probe_task is None or self._probe_task.done():
+            self._probe_task = asyncio.create_task(self._probe_loop())
 
     def stop(self) -> None:
         """Stop the background monitor."""
-        if self._task and not self._task.done():
-            self._task.cancel()
+        for task in (self._task, self._probe_task):
+            if task and not task.done():
+                task.cancel()
+
+    async def _probe_loop(self) -> None:
+        """Probe all models once a day and report the ones that stay down."""
+        await asyncio.sleep(_PROBE_STARTUP_DELAY)
+        while True:
+            try:
+                failing = await find_failing_models(self._gateway)
+                if failing:
+                    await send_telegram(
+                        "🔴 模型探測失敗（連續兩次）\n"
+                        + "\n".join(f"• {name}" for name in failing)
+                        + "\n\n用 /health 重測，/logs 看錯誤原因。"
+                    )
+            except asyncio.CancelledError:
+                break
+            except Exception:
+                logger.debug("Model probe error", exc_info=True)
+            await asyncio.sleep(_PROBE_INTERVAL)
 
     def _should_alert(self, key: str) -> bool:
         """Check if enough time has passed since the last alert for this key."""
