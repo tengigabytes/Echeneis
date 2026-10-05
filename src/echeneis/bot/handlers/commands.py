@@ -42,7 +42,7 @@ _HELP_USER = (
 )
 
 _HELP_ADMIN = (
-    "/eviction — Anti-eviction idle service 狀態\n"
+    "/eviction — 主機負載與 idle service 狀態\n"
     "/bench [維度] [模型] — 執行 benchmark 測試\n"
     "\n<b>用戶管理</b>\n"
     "/adduser &lt;id&gt; [name] — 新增 guest\n"

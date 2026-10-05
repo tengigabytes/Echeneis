@@ -228,7 +228,7 @@ A full run across all models uses approximately 308 requests.
 | `/logs [N]` | Last N WARNING+ log lines from bot and gateway |
 | `/health` | Active probe of every model (detects DEGRADED / rate limited / timeout) |
 | `/reload` | Hot-reload users.json, pending_requests.json, and the prompt cache |
-| `/eviction` | Anti-eviction idle-service status |
+| `/eviction` | Host load and idle-service status |
 | `/bench` | Run benchmark suite |
 
 Send text directly for general conversation (Tier A), photos for vision analysis, or files for document processing. Reply to a bot message to continue multi-turn conversation (up to 6 turns). Unregistered users receive a one-tap inline keyboard to submit an access request.

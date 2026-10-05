@@ -169,18 +169,17 @@ Alerts have a 1-hour cooldown per category to prevent flooding.
 ⏱ 運行 3d 14h 22m
 ```
 
-**Anti-eviction dashboard** — send `/eviction` in Telegram (admin only):
+**Host load dashboard** — send `/eviction` in Telegram (admin only):
 
 ```
-🛡 Anti-Eviction 狀態
-🟢 CPU  ██░░░░░░░░  21.4%  (load 0.84, 4 cores)
+🛡 主機負載 / Idle Service
+🟢 CPU  ░░░░░░░░░░   2.4%  (load 0.10, 4 cores)
 🟢 RAM  ███░░░░░░░  8.2/24 GB
 
 📋 Idle Service
 模式：常駐 stress-ng (Nice=19, SCHED_IDLE)
-目標：~21% 總 CPU（1 核 × 84%）
-狀態：健康（> 20% 閾值）
-策略：100% 時間 > 20% 閾值，永不觸發回收
+目標：~2% 總 CPU（1 核 × 8%）
+說明：最低基礎負載，不作為閒置回收防護
 ```
 
 The service runs continuously with the lowest possible scheduling
@@ -233,16 +232,22 @@ cat /var/lib/echeneis/state/active_tasks.json
 tail -20 /var/log/echeneis-deploy.log
 ```
 
-## 9. Anti-Eviction
+## 9. Idle Service
 
-Oracle Cloud Free Tier reclaims idle instances when CPU usage drops below
-~20% (95th percentile over 7 days). `install.sh` installs a long-running
-systemd service that holds the total CPU above the threshold at all times:
+`install.sh` installs a long-running systemd service that holds a small
+constant CPU load:
 
-- **`echeneis-idle.service`**: `stress-ng --cpu 1 --cpu-load 84
-  --cpu-method matrixprod --quiet` — one core held at 84% of wall time,
-  which averages ~21% of a 4-OCPU instance (always above the 20%
-  reclamation threshold).
+- **`echeneis-idle.service`**: `stress-ng --cpu 1 --cpu-load 8
+  --cpu-method matrixprod --quiet` — one core held at 8% of wall time,
+  which averages ~2% of a 4-OCPU instance.
+- **Idle-instance reclamation**: Oracle Cloud may reclaim Always Free
+  instances whose CPU, network, and memory utilisation all stay below 20%
+  over 7 days (CPU measured at the 95th percentile). The default 2% load
+  does **not** protect against this. If your tenancy is subject to
+  reclamation, change `--cpu-load 8` to `--cpu-load 84` in
+  `/etc/systemd/system/echeneis-idle.service` (~21% of a 4-OCPU
+  instance, always above the threshold), then run
+  `sudo systemctl daemon-reload && sudo systemctl restart echeneis-idle`.
 - **Priority**: `Nice=19`, `SCHED_IDLE`, and `IOSchedulingClass=idle`.
   Real services take CPU ahead of the stress load, so the perceived
   impact on workload latency is near zero.
@@ -255,7 +260,7 @@ Check it's running:
 # Service state
 sudo systemctl status echeneis-idle
 
-# Live CPU — expect the 'ni' (nice) column to sit around 20-22%
+# Live CPU — expect the 'ni' (nice) column to sit around 2%
 top -b -n 1 | head -5
 
 # journal

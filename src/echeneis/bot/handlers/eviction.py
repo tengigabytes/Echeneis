@@ -1,8 +1,9 @@
 """Telegram /eviction command handler.
 
-Shows anti-eviction status for the long-running systemd idle service.
-The service constantly holds ~21% total CPU via low-priority stress-ng,
-keeping the 7-day p95 above Oracle's 20% reclaim threshold at all times.
+Shows host CPU/RAM alongside the long-running systemd idle service.
+The service holds a token ~2% total CPU via low-priority stress-ng; it is
+not sized to clear Oracle's 20% idle-reclamation threshold, which does not
+apply to this tenancy.
 """
 
 from __future__ import annotations
@@ -19,7 +20,7 @@ from echeneis.bot.monitor import get_vm_resources
 
 logger = logging.getLogger(__name__)
 
-_TARGET_PCT = 21.0  # Idle service target (must exceed Oracle's 20% p95 threshold)
+_TARGET_PCT = 2.0  # Idle service target (token load, not a reclaim guard)
 
 
 def _bar(pct: float, width: int = 10) -> str:
@@ -30,25 +31,14 @@ def _bar(pct: float, width: int = 10) -> str:
 
 @require_admin
 async def eviction_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handle /eviction — show anti-eviction idle service status. Admin only."""
+    """Handle /eviction — show host load and idle service settings. Admin only."""
     sent = await update.message.reply_text("查詢中…")
 
     vm = get_vm_resources()
     cpu_pct = vm["cpu_pct"]
 
-    # Healthy: above Oracle's 20% threshold.
-    if cpu_pct >= 20.0:
-        health_icon = "🟢"
-        health_text = "健康（> 20% 閾值）"
-    elif cpu_pct >= 15.0:
-        health_icon = "🟡"
-        health_text = "偏低（接近閾值）"
-    else:
-        health_icon = "🔴"
-        health_text = "過低（idle service 可能未運行）"
-
     cpu_line = (
-        f"{health_icon} CPU  {_bar(cpu_pct)} {cpu_pct:>5.1f}%  "
+        f"🟢 CPU  {_bar(cpu_pct)} {cpu_pct:>5.1f}%  "
         f"(load {vm['load_1m']}, {vm['cpu_count']} cores)"
     )
     mem_line = (
@@ -57,14 +47,13 @@ async def eviction_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     )
 
     parts: list[str] = [
-        "🛡 <b>Anti-Eviction 狀態</b>",
+        "🛡 <b>主機負載 / Idle Service</b>",
         f"<pre>{cpu_line}\n{mem_line}</pre>",
         "📋 <b>Idle Service</b>",
         f"<pre>"
         f"模式：常駐 stress-ng (Nice=19, SCHED_IDLE)\n"
-        f"目標：~{_TARGET_PCT:.0f}% 總 CPU（1 核 × 84%）\n"
-        f"狀態：{health_text}\n"
-        f"策略：100% 時間 > 20% 閾值，永不觸發回收"
+        f"目標：~{_TARGET_PCT:.0f}% 總 CPU（1 核 × 8%）\n"
+        f"說明：最低基礎負載，不作為閒置回收防護"
         f"</pre>",
         "\n<i>VM 端查狀態：</i><code>systemctl status echeneis-idle</code>",
     ]

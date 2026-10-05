@@ -40,7 +40,7 @@ fi
 cp "${IDLE_SERVICE_FILE}" /etc/systemd/system/echeneis-idle.service
 systemctl daemon-reload
 systemctl enable --now echeneis-idle.service
-info "Idle service enabled (target ~21% total CPU, Nice=19)"
+info "Idle service enabled (target ~2% total CPU, Nice=19)"
 
 # ── Auto-update cron ─────────────────────────────────────────────────────────
 
