@@ -64,7 +64,7 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     parts: list[str] = []
 
     # -- VM Resources --
-    vm = get_vm_resources()
+    vm = await get_vm_resources()
     cpu_icon = "🔴" if vm["cpu_pct"] > 80 else "🟡" if vm["cpu_pct"] > 50 else "🟢"
     mem_icon = "🔴" if vm["mem_pct"] > 90 else "🟡" if vm["mem_pct"] > 70 else "🟢"
     disk_icon = "🔴" if vm["disk_pct"] > 85 else "🟡" if vm["disk_pct"] > 70 else "🟢"
@@ -72,7 +72,8 @@ async def status_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     parts.append("🖥 <b>VM 狀態</b>")
     vm_lines = [
         f"{cpu_icon} CPU  {_bar(vm['cpu_pct'])} {vm['cpu_pct']:>5.1f}%  "
-        f"(load {vm['load_1m']}, {vm['cpu_count']} cores)",
+        f"({vm['cpu_count']} cores)",
+        f"   load {vm['load_1m']} · iowait {vm['iowait_pct']:.0f}%",
         f"{mem_icon} RAM  {_bar(vm['mem_pct'])} "
         f"{vm['mem_used_gb']:>4.1f}/{vm['mem_total_gb']:.0f} GB",
         f"{disk_icon} Disk {_bar(vm['disk_pct'])} "

@@ -34,12 +34,12 @@ async def eviction_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     """Handle /eviction — show host load and idle service settings. Admin only."""
     sent = await update.message.reply_text("查詢中…")
 
-    vm = get_vm_resources()
+    vm = await get_vm_resources()
     cpu_pct = vm["cpu_pct"]
 
     cpu_line = (
-        f"🟢 CPU  {_bar(cpu_pct)} {cpu_pct:>5.1f}%  "
-        f"(load {vm['load_1m']}, {vm['cpu_count']} cores)"
+        f"🟢 CPU  {_bar(cpu_pct)} {cpu_pct:>5.1f}%  ({vm['cpu_count']} cores)\n"
+        f"   load {vm['load_1m']} · iowait {vm['iowait_pct']:.0f}%"
     )
     mem_line = (
         f"🟢 RAM  {_bar(vm['mem_pct'])} "

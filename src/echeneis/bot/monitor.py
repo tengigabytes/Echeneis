@@ -23,6 +23,8 @@ logger = logging.getLogger(__name__)
 # Thresholds
 # ---------------------------------------------------------------------------
 _CPU_WARN_PCT = 80  # sustained CPU > 80%
+_CPU_ALERT_SAMPLE_S = 60.0  # alert on a 1-minute average, not a brief spike
+_CPU_SAMPLE_S = 1.0  # on-demand dashboards (/status, /eviction)
 _MEM_WARN_PCT = 90  # memory > 90%
 _DISK_WARN_PCT = 85  # disk > 85%
 _QUOTA_WARN_PCT = 90  # RPD > 90% of limit
@@ -56,19 +58,67 @@ def _get_host_proc() -> str | None:
     return None
 
 
-def get_vm_resources() -> dict[str, Any]:
-    """Collect CPU, memory, and disk metrics.
+def _cpu_times() -> tuple[float, float, float]:
+    """Return cumulative (total, idle, iowait) CPU seconds across all cores.
 
-    Uses host /proc when mounted (Docker), otherwise falls back to
-    container-local metrics.
+    /proc/stat is not namespaced, so psutil inside the container already
+    sees host-wide CPU time.
+    """
+    t = psutil.cpu_times()
+    # Linux counts guest time inside user/nice as well; drop it from the sum.
+    guest = getattr(t, "guest", 0.0) + getattr(t, "guest_nice", 0.0)
+    return sum(t) - guest, t.idle, getattr(t, "iowait", 0.0)
+
+
+def cpu_usage(
+    before: tuple[float, float, float], after: tuple[float, float, float]
+) -> tuple[float, float]:
+    """Compute busy and I/O-wait percentages between two ``_cpu_times`` samples.
+
+    I/O wait counts as idle: the CPU is free, it just has nothing runnable
+    while reads are outstanding.
+
+    Args:
+        before: Earlier (total, idle, iowait) sample.
+        after: Later (total, idle, iowait) sample.
 
     Returns:
-        Dict with cpu_pct, load_1m, mem_used_gb, mem_total_gb, mem_pct,
-        disk_used_gb, disk_total_gb, disk_pct.
+        Tuple of (busy_pct, iowait_pct); both 0.0 if no time elapsed.
     """
+    total = after[0] - before[0]
+    if total <= 0:
+        return 0.0, 0.0
+    idle = after[1] - before[1]
+    iowait = after[2] - before[2]
+    busy = max(total - idle - iowait, 0.0)
+    return busy / total * 100, iowait / total * 100
+
+
+async def get_vm_resources(sample_s: float = _CPU_SAMPLE_S) -> dict[str, Any]:
+    """Collect CPU, memory, and disk metrics.
+
+    CPU busy % is measured from CPU time consumed over ``sample_s``.
+    Load average is reported alongside but is not a CPU measure: Linux
+    counts tasks blocked on disk I/O in it, so on an I/O-bound host
+    load / cores can sit far above 100% while the CPU is idle.
+
+    Memory and load use host /proc when mounted (Docker), otherwise
+    container-local metrics.
+
+    Args:
+        sample_s: CPU sampling window in seconds.
+
+    Returns:
+        Dict with cpu_pct, iowait_pct, load_1m, cpu_count, mem_used_gb,
+        mem_total_gb, mem_pct, disk_used_gb, disk_total_gb, disk_pct.
+    """
+    before = _cpu_times()
+    await asyncio.sleep(sample_s)
+    cpu_pct, iowait_pct = cpu_usage(before, _cpu_times())
+
     host_proc = _get_host_proc()
 
-    # CPU — use host /proc/loadavg if available
+    # Load — use host /proc/loadavg if available
     if host_proc:
         try:
             with open(f"{host_proc}/loadavg") as f:
@@ -79,7 +129,6 @@ def get_vm_resources() -> dict[str, Any]:
         load_1m = os.getloadavg()[0] if hasattr(os, "getloadavg") else 0.0
 
     cpu_count = psutil.cpu_count() or 1
-    cpu_pct = (load_1m / cpu_count) * 100
 
     # Memory — use host /proc/meminfo if available
     if host_proc:
@@ -104,6 +153,7 @@ def get_vm_resources() -> dict[str, Any]:
 
     return {
         "cpu_pct": round(cpu_pct, 1),
+        "iowait_pct": round(iowait_pct, 1),
         "load_1m": round(load_1m, 2),
         "cpu_count": cpu_count,
         "mem_used_gb": round(mem_used / (1024**3), 1),
@@ -316,12 +366,14 @@ class SystemMonitor:
     async def _check_all(self) -> None:
         """Run all checks and send alerts if thresholds breached."""
         # VM resources
-        vm = get_vm_resources()
+        vm = await get_vm_resources(sample_s=_CPU_ALERT_SAMPLE_S)
 
         if vm["cpu_pct"] > _CPU_WARN_PCT and self._should_alert("cpu"):
             await send_telegram(
                 f"🔴 CPU 使用率過高\n"
-                f"Load: {vm['load_1m']} ({vm['cpu_count']} cores, {vm['cpu_pct']:.0f}%)"
+                f"CPU: {vm['cpu_pct']:.0f}%"
+                f"（{_CPU_ALERT_SAMPLE_S:.0f}s 平均，{vm['cpu_count']} cores）\n"
+                f"Load: {vm['load_1m']}，iowait {vm['iowait_pct']:.0f}%"
             )
 
         if vm["mem_pct"] > _MEM_WARN_PCT and self._should_alert("mem"):
