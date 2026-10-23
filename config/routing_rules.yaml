@@ -63,14 +63,14 @@ tiers:
       batch: groq-gpt-oss-120b
       summarization: gemma-4-26b         # MoE -good throughput for summaries
     fallback:
+      # nvidia-diffusiongemma-26b stays registered but out of the chains:
+      # it hung past the 120s timeout right after being added.
       batch:
-        - nvidia-diffusiongemma-26b      # ~2s
         - gemini-3.5-flash-lite
         - groq-gpt-oss-20b
         - nvidia-nemotron-3.5-bolt-e4b   # ~1.5s, smallest
       summarization:
         - groq-gpt-oss-120b
-        - nvidia-diffusiongemma-26b
         - gemini-3.5-flash-lite
         - nvidia-nemotron-3.5-bolt-e4b
 
