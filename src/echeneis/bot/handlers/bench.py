@@ -107,14 +107,17 @@ _SHORT_NAMES: dict[str, str] = {
     "groq-gpt-oss-120b": "groq-120b",
     "groq-gpt-oss-20b": "groq-20b",
     "mistral-codestral": "codestral",
-    "nvidia-nemotron-3-super-120b": "nv-super",
+    "nvidia-nemotron-3.5-super-vl-120b": "nv-super-vl",
     "nvidia-nemotron-3-ultra-550b": "nv-ultra",
+    "nvidia-diffusiongemma-26b": "nv-dgemma",
+    "nvidia-nemotron-3.5-bolt-e4b": "nv-bolt",
     "gemma-4-31b": "gemma-31b",
     "gemma-4-26b": "gemma-26b",
     "github-gpt-4o": "gh-gpt4o",
     "gemini-3.1-flash-lite": "gem-3.1-lt",
     "gemini-3.5-flash-lite": "gem-3.5-lt",
-    "gemini-3.5-flash": "gem-3.5",
+    "gemini-3.6-flash": "gem-3.6",
+    "gemini-3-flash-preview": "gem-3-pv",
 }
 
 # Per-dimension emoji for section headers.

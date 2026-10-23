@@ -8,8 +8,8 @@ tiers:
       reasoning: gemma-4-31b
     fallback:
       - nvidia-nemotron-3-ultra-550b  # NVIDIA NIM flagship (40 RPM, no credit cap)
-      - gemini-3.5-flash
-      - nvidia-nemotron-3-super-120b
+      - gemini-3.6-flash
+      - nvidia-nemotron-3.5-super-vl-120b
       - github-gpt-4o
 
   A:
@@ -27,26 +27,29 @@ tiers:
     # single provider's outage never breaks the entire task.
     fallback:
       translation:
-        - nvidia-nemotron-3-super-120b   # NVIDIA NIM
-        - gemini-3.5-flash
+        - nvidia-nemotron-3.5-super-vl-120b  # NVIDIA NIM
+        - gemini-3.6-flash
         - groq-gpt-oss-120b
       code_generation:
         - mistral-codestral              # Mistral code specialist, ~0.5s
-        - nvidia-nemotron-3-super-120b
+        - nvidia-nemotron-3.5-super-vl-120b
         - groq-gpt-oss-120b
       code_review:
-        - nvidia-nemotron-3-super-120b
-        - gemini-3.5-flash
+        - nvidia-nemotron-3.5-super-vl-120b
+        - gemini-3.6-flash
         - groq-gpt-oss-120b
       general_qa:
         # Translation-ish prompts that miss the translation keyword list
         # (e.g. "轉成英文") land here, so the chain leads with the largest
         # models and keeps the small ones last.
         - groq-gpt-oss-120b              # ~0.4s
-        - nvidia-nemotron-3-super-120b
-        - gemini-3.5-flash
+        - nvidia-nemotron-3.5-super-vl-120b
+        - gemini-3.6-flash
+        - gemini-3-flash-preview         # ~1s
         - gemini-3.5-flash-lite          # last resort: fast but small
       vision:
+        - nvidia-nemotron-3.5-super-vl-120b  # only non-Google vision model
+        - gemini-3-flash-preview         # ~1s
         - gemini-3.1-flash-lite          # ~1s, multimodal, A-tier quality
         - gemma-4-26b
 
@@ -61,11 +64,15 @@ tiers:
       summarization: gemma-4-26b         # MoE -good throughput for summaries
     fallback:
       batch:
+        - nvidia-diffusiongemma-26b      # ~2s
         - gemini-3.5-flash-lite
         - groq-gpt-oss-20b
+        - nvidia-nemotron-3.5-bolt-e4b   # ~1.5s, smallest
       summarization:
         - groq-gpt-oss-120b
+        - nvidia-diffusiongemma-26b
         - gemini-3.5-flash-lite
+        - nvidia-nemotron-3.5-bolt-e4b
 
 task_types:
   - name: translation

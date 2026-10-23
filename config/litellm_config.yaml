@@ -64,9 +64,10 @@ model_list:
       rpd: 150
 
   # --- NVIDIA NIM (build.nvidia.com, rate-limit-based trial, no credit cap) ---
-  - model_name: nvidia-nemotron-3-super-120b
+  # nemotron-3.5-super-vl replaces nemotron-3-super-120b (404 since 2026-10-21)
+  - model_name: nvidia-nemotron-3.5-super-vl-120b
     litellm_params:
-      model: nvidia_nim/nvidia/nemotron-3-super-120b-a12b
+      model: nvidia_nim/nvidia/nemotron-3.5-super-vl-120b-a12b
       api_key: os.environ/NVIDIA_API_KEY
     rate_limits:
       rpm: 40
@@ -75,6 +76,22 @@ model_list:
   - model_name: nvidia-nemotron-3-ultra-550b
     litellm_params:
       model: nvidia_nim/nvidia/nemotron-3-ultra-550b-a55b
+      api_key: os.environ/NVIDIA_API_KEY
+    rate_limits:
+      rpm: 40
+      rpd: 0
+
+  - model_name: nvidia-diffusiongemma-26b
+    litellm_params:
+      model: nvidia_nim/google/diffusiongemma-26b-a4b-it
+      api_key: os.environ/NVIDIA_API_KEY
+    rate_limits:
+      rpm: 40
+      rpd: 0
+
+  - model_name: nvidia-nemotron-3.5-bolt-e4b
+    litellm_params:
+      model: nvidia_nim/nvidia/nemotron-3.5-bolt-e4b
       api_key: os.environ/NVIDIA_API_KEY
     rate_limits:
       rpm: 40
@@ -97,9 +114,18 @@ model_list:
       rpm: 15
       rpd: 500
 
-  - model_name: gemini-3.5-flash
+  # gemini-3.5-flash already resolves to gemini-3.6-flash upstream; pin it
+  - model_name: gemini-3.6-flash
     litellm_params:
-      model: gemini/gemini-3.5-flash
+      model: gemini/gemini-3.6-flash
+      api_key: os.environ/GOOGLE_AI_STUDIO_API_KEY
+    rate_limits:
+      rpm: 10
+      rpd: 250
+
+  - model_name: gemini-3-flash-preview
+    litellm_params:
+      model: gemini/gemini-3-flash-preview
       api_key: os.environ/GOOGLE_AI_STUDIO_API_KEY
     rate_limits:
       rpm: 10

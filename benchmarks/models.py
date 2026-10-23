@@ -8,10 +8,15 @@ from __future__ import annotations
 
 # Models that accept image_url content (vision-capable).
 # Derived from CLAUDE.md benchmark results — Groq/Cerebras are text-only.
+# The gemini-3.6/3-flash and nvidia entries passed a single image probe only.
 VISION_MODELS: set[str] = {
     "gemma-4-31b",
     "gemma-4-26b",
     "gemini-3.1-flash-lite",
+    "gemini-3.6-flash",
+    "gemini-3-flash-preview",
+    "nvidia-nemotron-3.5-super-vl-120b",
+    "nvidia-diffusiongemma-26b",
     "github-gpt-4o",
 }
 

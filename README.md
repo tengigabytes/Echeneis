@@ -86,7 +86,7 @@ graph TD
 | GitHub Models | GPT-4o |
 | OpenRouter | Various open models |
 | Gemini API | Gemini Flash, Flash Lite |
-| NVIDIA NIM | Nemotron 3 Super, Nemotron 3 Ultra |
+| NVIDIA NIM | Nemotron 3 Ultra, Nemotron 3.5 Super VL, Nemotron 3.5 Bolt, DiffusionGemma |
 
 ## Tiered Routing
 
