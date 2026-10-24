@@ -1,4 +1,31 @@
 model_list:
+  # --- Anthropic (Claude API, billed to the linked Console org) ---
+  # Claude 5.5 models reject non-default temperature/top_p with a 400;
+  # the router then fails over to the next model in the chain.
+  - model_name: claude-opus-5-5
+    litellm_params:
+      model: anthropic/claude-opus-5-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+    rate_limits:
+      rpm: 50  # assumed Console tier 1; check Console > Limits
+      rpd: 0
+
+  - model_name: claude-sonnet-5-5
+    litellm_params:
+      model: anthropic/claude-sonnet-5-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+    rate_limits:
+      rpm: 50
+      rpd: 0
+
+  - model_name: claude-haiku-5-5
+    litellm_params:
+      model: anthropic/claude-haiku-5-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+    rate_limits:
+      rpm: 50
+      rpd: 0
+
   # --- Google AI Studio ---
   - model_name: gemma-4-31b
     litellm_params:

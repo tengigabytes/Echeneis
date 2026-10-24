@@ -5,8 +5,9 @@ tiers:
       - command: /think
       - classifier: high_complexity
     models:
-      reasoning: gemma-4-31b
+      reasoning: claude-opus-5-5
     fallback:
+      - gemma-4-31b
       - nvidia-nemotron-3-ultra-550b  # NVIDIA NIM flagship (40 RPM, no credit cap)
       - gemini-3.6-flash
       - nvidia-nemotron-3.5-super-vl-120b
@@ -17,24 +18,30 @@ tiers:
     trigger:
       - default: true
     models:
-      translation: gemma-4-31b          # 6/6 term preservation
-      code_generation: gemma-4-31b       # dense -deep attention for code
-      code_review: gemma-4-31b           # dense -focused analysis
-      general_qa: gemma-4-31b
-      vision: gemma-4-31b               # dense -better image understanding
+      translation: claude-sonnet-5-5
+      code_generation: claude-sonnet-5-5
+      code_review: claude-sonnet-5-5
+      general_qa: claude-sonnet-5-5
+      vision: claude-sonnet-5-5
+    # Claude is primary everywhere; the free models that used to be
+    # primary lead each fallback chain, so a missing key or exhausted
+    # credit degrades to the previous routing.
     # Fallback chains ordered for provider diversity:
     # each task's chain intentionally spans multiple providers so that a
     # single provider's outage never breaks the entire task.
     fallback:
       translation:
+        - gemma-4-31b                    # 6/6 term preservation
         - nvidia-nemotron-3.5-super-vl-120b  # NVIDIA NIM
         - gemini-3.6-flash
         - groq-gpt-oss-120b
       code_generation:
+        - gemma-4-31b                    # dense -deep attention for code
         - mistral-codestral              # Mistral code specialist, ~0.5s
         - nvidia-nemotron-3.5-super-vl-120b
         - groq-gpt-oss-120b
       code_review:
+        - gemma-4-31b                    # dense -focused analysis
         - nvidia-nemotron-3.5-super-vl-120b
         - gemini-3.6-flash
         - groq-gpt-oss-120b
@@ -42,12 +49,14 @@ tiers:
         # Translation-ish prompts that miss the translation keyword list
         # (e.g. "轉成英文") land here, so the chain leads with the largest
         # models and keeps the small ones last.
+        - gemma-4-31b
         - groq-gpt-oss-120b              # ~0.4s
         - nvidia-nemotron-3.5-super-vl-120b
         - gemini-3.6-flash
         - gemini-3-flash-preview         # ~1s
         - gemini-3.5-flash-lite          # last resort: fast but small
       vision:
+        - gemma-4-31b                    # dense -better image understanding
         - nvidia-nemotron-3.5-super-vl-120b  # only non-Google vision model
         - gemini-3-flash-preview         # ~1s
         - gemini-3.1-flash-lite          # ~1s, multimodal, A-tier quality
@@ -60,16 +69,18 @@ tiers:
       - classifier: low_complexity
       - batch_api: true
     models:
-      batch: groq-gpt-oss-120b
-      summarization: gemma-4-26b         # MoE -good throughput for summaries
+      batch: claude-haiku-5-5
+      summarization: claude-haiku-5-5
     fallback:
       # nvidia-diffusiongemma-26b stays registered but out of the chains:
       # it hung past the 120s timeout right after being added.
       batch:
+        - groq-gpt-oss-120b
         - gemini-3.5-flash-lite
         - groq-gpt-oss-20b
         - nvidia-nemotron-3.5-bolt-e4b   # ~1.5s, smallest
       summarization:
+        - gemma-4-26b                    # MoE -good throughput for summaries
         - groq-gpt-oss-120b
         - gemini-3.5-flash-lite
         - nvidia-nemotron-3.5-bolt-e4b
