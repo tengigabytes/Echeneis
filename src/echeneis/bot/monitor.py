@@ -10,6 +10,7 @@ import asyncio
 import logging
 import os
 import time
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import psutil
@@ -35,9 +36,11 @@ _ALERT_COOLDOWN = 3600  # 1 hour
 _CHECK_INTERVAL = 300  # 5 minutes
 
 # Daily active probe — catches models retired upstream, which the circuit
-# breaker only cycles open/half-open on and never reports.
-_PROBE_INTERVAL = 86400  # 24 hours
-_PROBE_STARTUP_DELAY = 600  # let the gateway settle after a deploy
+# breaker only cycles open/half-open on and never reports. It runs at a
+# fixed evening hour rather than 24 h after each deploy, so its alerts
+# never arrive in the middle of the night.
+_PROBE_TZ = timezone(timedelta(hours=8))  # Taiwan time; no DST, so exact
+_PROBE_HOUR = 22
 _PROBE_RETRY_DELAY = 600  # re-check failures once to filter transient errors
 _PROBE_TIMEOUT_S = 60.0
 _PROBE_MAX_TOKENS = 5
@@ -295,6 +298,19 @@ async def find_failing_models(
     return [m for m, bad in zip(suspects, failed) if bad]
 
 
+def next_probe_time(after: datetime) -> datetime:
+    """Return the first daily probe time (22:00 Taiwan) strictly after *after*.
+
+    Args:
+        after: A timezone-aware datetime, in any zone.
+    """
+    local = after.astimezone(_PROBE_TZ)
+    target = local.replace(hour=_PROBE_HOUR, minute=0, second=0, microsecond=0)
+    if target <= local:
+        target += timedelta(days=1)
+    return target
+
+
 # ---------------------------------------------------------------------------
 # Background Monitor
 # ---------------------------------------------------------------------------
@@ -324,9 +340,12 @@ class SystemMonitor:
                 task.cancel()
 
     async def _probe_loop(self) -> None:
-        """Probe all models once a day and report the ones that stay down."""
-        await asyncio.sleep(_PROBE_STARTUP_DELAY)
+        """Probe all models every evening and report the ones that stay down."""
+        next_run = next_probe_time(datetime.now(_PROBE_TZ))
         while True:
+            delay = (next_run - datetime.now(_PROBE_TZ)).total_seconds()
+            await asyncio.sleep(max(0.0, delay))
+            next_run = next_probe_time(next_run)
             try:
                 failing = await find_failing_models(self._gateway)
                 if failing:
@@ -339,7 +358,6 @@ class SystemMonitor:
                 break
             except Exception:
                 logger.debug("Model probe error", exc_info=True)
-            await asyncio.sleep(_PROBE_INTERVAL)
 
     def _should_alert(self, key: str) -> bool:
         """Check if enough time has passed since the last alert for this key."""
