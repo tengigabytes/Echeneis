@@ -122,7 +122,7 @@ class TestChatCompletions:
         resp = client.post("/chat/completions", json={"messages": []})
         assert resp.status_code == 400
 
-    def test_routes_translation_to_gemma(self, client: TestClient) -> None:
+    def test_routes_translation_to_claude_sonnet(self, client: TestClient) -> None:
         """Verify a translation request is routed to the correct model."""
         fake_llm_resp = MagicMock()
         fake_llm_resp.model_dump.return_value = {
@@ -142,9 +142,9 @@ class TestChatCompletions:
             )
             assert resp.status_code == 200
             call_kwargs = mock_acompletion.call_args.kwargs
-            assert "gemma" in call_kwargs["model"]
+            assert call_kwargs["model"] == "anthropic/claude-sonnet-5-5"
 
-    def test_routes_code_to_gemma(self, client: TestClient) -> None:
+    def test_routes_code_to_claude_sonnet(self, client: TestClient) -> None:
         """Verify a code request is routed to the correct model."""
         fake_llm_resp = MagicMock()
         fake_llm_resp.model_dump.return_value = {
@@ -164,7 +164,7 @@ class TestChatCompletions:
             )
             assert resp.status_code == 200
             call_kwargs = mock_acompletion.call_args.kwargs
-            assert "gemma" in call_kwargs["model"]
+            assert call_kwargs["model"] == "anthropic/claude-sonnet-5-5"
 
     def test_think_command_routes_to_tier_s(self, client: TestClient) -> None:
         """Verify /think command triggers tier S routing."""
@@ -187,7 +187,7 @@ class TestChatCompletions:
             )
             assert resp.status_code == 200
             call_kwargs = mock_acompletion.call_args.kwargs
-            assert "gemini" in call_kwargs["model"]
+            assert call_kwargs["model"] == "anthropic/claude-opus-5-5"
 
     def test_fast_command_routes_to_tier_b(self, client: TestClient) -> None:
         """Verify /fast command triggers tier B routing."""

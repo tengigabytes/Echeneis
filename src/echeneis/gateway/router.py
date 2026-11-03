@@ -63,6 +63,24 @@ def _resolve_env_ref(value: str) -> str | None:
     return value
 
 
+def is_credit_exhausted(error: BaseException) -> bool:
+    """Return True when a provider refused a call because its credit ran out.
+
+    Anthropic answers 402 ``billing_error``, or 400 with "Your credit
+    balance is too low to access the Anthropic API"; litellm surfaces
+    both as a BadRequestError subclass.
+    """
+    if getattr(error, "status_code", None) == 402:
+        return True
+    text = str(error).lower()
+    return "credit balance" in text or "billing_error" in text
+
+
+def _provider(entry: ModelEntry) -> str:
+    """Provider prefix of a litellm model id, e.g. "anthropic"."""
+    return entry.litellm_model.split("/", 1)[0]
+
+
 def build_model_registry(
     litellm_config_path: str,
     usage_tracker: UsageTracker | None = None,
@@ -158,6 +176,16 @@ class Router:
             existing = call_kwargs.get("extra_body") or {}
             call_kwargs["extra_body"] = {**entry.extra_body, **existing}
 
+    def _note_credit_exhausted(
+        self, short_name: str, entry: ModelEntry, error: BaseException
+    ) -> bool:
+        """Mark the provider out of credit if *error* says so; True if it did."""
+        if not is_credit_exhausted(error):
+            return False
+        logger.info("Credit exhausted on %s, failing over", short_name)
+        self._health.mark_out_of_credit(_provider(entry))
+        return True
+
     def _pick_models(self, classification: Classification) -> list[str]:
         """Pick primary + fallback model names for a classification.
 
@@ -213,11 +241,14 @@ class Router:
         last_error: Exception | None = None
 
         for short_name in candidates:
+            entry = self._resolve_model(short_name)
+            if not self._health.has_credit(_provider(entry)):
+                logger.debug("Skipping %s — out of credit", short_name)
+                continue
             if not self._health.is_available(short_name):
                 logger.info("Skipping %s — unavailable", short_name)
                 continue
 
-            entry = self._resolve_model(short_name)
             logger.info(
                 "Routing %s/%s → %s (%s)",
                 classification.tier,
@@ -261,6 +292,9 @@ class Router:
                 last_error = e
 
             except litellm.APIError as e:
+                if self._note_credit_exhausted(short_name, entry, e):
+                    last_error = e
+                    continue
                 status = getattr(e, "status_code", 500)
                 logger.warning("API error %d on %s, failing over", status, short_name)
                 self._health.record_failure(short_name, status)
@@ -276,6 +310,9 @@ class Router:
                 )
 
             except Exception as e:
+                if self._note_credit_exhausted(short_name, entry, e):
+                    last_error = e
+                    continue
                 logger.warning(
                     "Unexpected error on %s: %s, failing over",
                     short_name,
@@ -310,6 +347,8 @@ class Router:
             RuntimeError: If the model call fails.
         """
         entry = self._resolve_model(short_name)
+        if not self._health.has_credit(_provider(entry)):
+            raise RuntimeError(f"Model {short_name} skipped: provider out of credit")
         timeout = self._config.failover.timeout_seconds
 
         call_kwargs: dict[str, Any] = {
@@ -335,7 +374,8 @@ class Router:
                 self._usage.record_request(short_name)
             return RoutedResponse(response=response, model_name=short_name)
         except Exception as e:
-            self._health.record_failure(short_name, getattr(e, "status_code", 500))
+            if not self._note_credit_exhausted(short_name, entry, e):
+                self._health.record_failure(short_name, getattr(e, "status_code", 500))
             raise RuntimeError(f"Model {short_name} failed: {e}") from e
 
     async def route_stream(
@@ -391,11 +431,14 @@ class Router:
         stream_options.setdefault("include_usage", True)
 
         for short_name in candidates:
+            entry = self._resolve_model(short_name)
+            if not self._health.has_credit(_provider(entry)):
+                logger.debug("Skipping %s — out of credit (stream)", short_name)
+                continue
             if not self._health.is_available(short_name):
                 logger.info("Skipping %s — unavailable (stream)", short_name)
                 continue
 
-            entry = self._resolve_model(short_name)
             logger.info("Streaming → %s (%s)", short_name, entry.litellm_model)
 
             call_kwargs: dict[str, Any] = {
@@ -428,6 +471,9 @@ class Router:
                 asyncio.TimeoutError,
                 StopAsyncIteration,
             ) as e:
+                if self._note_credit_exhausted(short_name, entry, e):
+                    last_error = e
+                    continue
                 default_status = 0 if isinstance(e, asyncio.TimeoutError) else 500
                 status = getattr(e, "status_code", default_status)
                 logger.warning(
@@ -439,6 +485,9 @@ class Router:
                 last_error = e
                 continue
             except Exception as e:
+                if self._note_credit_exhausted(short_name, entry, e):
+                    last_error = e
+                    continue
                 logger.warning("Unexpected stream error on %s: %s", short_name, e)
                 self._health.record_failure(short_name, 500)
                 last_error = e
@@ -480,12 +529,14 @@ class Router:
         for short_name, entry in self._registry.items():
             available = self._health.is_available(short_name)
             has_key = bool(entry.api_key)
+            has_credit = self._health.has_credit(_provider(entry))
             models.append(
                 {
                     "name": short_name,
                     "litellm_model": entry.litellm_model,
-                    "available": available and has_key,
+                    "available": available and has_key and has_credit,
                     "has_key": has_key,
+                    "out_of_credit": not has_credit,
                 }
             )
         return models

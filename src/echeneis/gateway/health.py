@@ -15,6 +15,10 @@ from echeneis.gateway.notifier import send_telegram
 
 logger = logging.getLogger(__name__)
 
+# A provider whose prepaid credit ran out is skipped this long before
+# requests are let through again to see whether the balance was topped up.
+_CREDIT_RECHECK_SECONDS = 1800
+
 
 def _fire_notification(text: str) -> None:
     """Schedule a fire-and-forget Telegram notification.
@@ -71,6 +75,7 @@ class HealthTracker:
     def __init__(self, failover_config: FailoverConfig) -> None:
         self._config = failover_config
         self._states: dict[str, ProviderState] = {}
+        self._out_of_credit_until: dict[str, float] = {}
 
     def _get_state(self, model_name: str) -> ProviderState:
         """Get or create provider state."""
@@ -160,6 +165,28 @@ class HealthTracker:
                 f"⚠️ *{model_name}* 斷路開啟 "
                 f"(連續 {state.consecutive_failures} 次失敗, HTTP {status_code})"
             )
+
+    def mark_out_of_credit(self, provider: str) -> None:
+        """Skip every model of *provider* until the next credit re-check.
+
+        A spent prepaid balance is an expected state, not an outage: it
+        does not count towards the circuit breaker and sends no alert.
+        """
+        if provider not in self._out_of_credit_until:
+            logger.info("%s credit exhausted, skipping its models", provider)
+        self._out_of_credit_until[provider] = time.monotonic() + _CREDIT_RECHECK_SECONDS
+
+    def has_credit(self, provider: str) -> bool:
+        """Return False while *provider* is known to be out of prepaid credit."""
+        until = self._out_of_credit_until.get(provider)
+        if until is None:
+            return True
+        if time.monotonic() < until:
+            return False
+        # Re-check: let requests through; another billing error re-marks it.
+        del self._out_of_credit_until[provider]
+        logger.info("Re-checking %s credit", provider)
+        return True
 
     def get_status(self) -> dict[str, dict[str, str | int | bool]]:
         """Get health status of all tracked providers."""

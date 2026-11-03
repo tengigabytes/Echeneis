@@ -154,3 +154,29 @@ class TestCircuitBreakerNotifications:
         tracker.record_failure("model-a", 429)
         tracker.record_failure("model-a", 429)
         assert tracker._get_state("model-a").circuit_state == CircuitState.OPEN
+
+
+class TestOutOfCredit:
+    def test_unknown_provider_has_credit(self) -> None:
+        assert _tracker().has_credit("anthropic") is True
+
+    def test_marked_provider_is_skipped_without_failures(self, monkeypatch) -> None:
+        sent: list[str] = []
+        monkeypatch.setattr(health_module, "_fire_notification", sent.append)
+        tracker = _tracker(failures=1)
+        tracker.mark_out_of_credit("anthropic")
+        assert tracker.has_credit("anthropic") is False
+        assert tracker.has_credit("gemini") is True
+        # No circuit breaker state and no alert for a spent balance.
+        assert tracker.get_status() == {}
+        assert sent == []
+
+    def test_recheck_after_interval(self, monkeypatch) -> None:
+        tracker = _tracker()
+        tracker.mark_out_of_credit("anthropic")
+        later = time.monotonic() + health_module._CREDIT_RECHECK_SECONDS + 1
+        monkeypatch.setattr(health_module.time, "monotonic", lambda: later)
+        assert tracker.has_credit("anthropic") is True
+        # Re-marked by the next billing error, skipped again.
+        tracker.mark_out_of_credit("anthropic")
+        assert tracker.has_credit("anthropic") is False

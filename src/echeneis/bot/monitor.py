@@ -271,9 +271,11 @@ async def find_failing_models(
 ) -> list[str]:
     """Probe every keyed model and return those that fail twice in a row.
 
-    Models without an API key are skipped (a known configuration state,
-    not an outage). Circuit state is ignored on purpose: a model whose
-    circuit is open is exactly the kind this check exists to report.
+    Models without an API key, and models whose provider ran out of
+    prepaid credit (also when that is discovered during the probe), are
+    skipped: both are known states, not outages. Circuit state is
+    ignored on purpose: a model whose circuit is open is exactly the
+    kind this check exists to report.
 
     Args:
         gateway: Client for the running gateway.
@@ -287,7 +289,11 @@ async def find_failing_models(
     except GatewayError:
         return []
 
-    targets = [m["name"] for m in data.get("models", []) if m.get("has_key")]
+    targets = [
+        m["name"]
+        for m in data.get("models", [])
+        if m.get("has_key") and not m.get("out_of_credit")
+    ]
     failed = await asyncio.gather(*(_probe_failed(gateway, m) for m in targets))
     suspects = [m for m, bad in zip(targets, failed) if bad]
     if not suspects:
@@ -295,7 +301,15 @@ async def find_failing_models(
 
     await asyncio.sleep(retry_delay)
     failed = await asyncio.gather(*(_probe_failed(gateway, m) for m in suspects))
-    return [m for m, bad in zip(suspects, failed) if bad]
+    failing = [m for m, bad in zip(suspects, failed) if bad]
+    if not failing:
+        return []
+    try:
+        data = await gateway.models()
+    except GatewayError:
+        return failing
+    no_credit = {m["name"] for m in data.get("models", []) if m.get("out_of_credit")}
+    return [m for m in failing if m not in no_credit]
 
 
 def next_probe_time(after: datetime) -> datetime:

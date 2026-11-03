@@ -7,7 +7,7 @@ import pytest
 from echeneis.gateway.classifier import Classification
 from echeneis.gateway.config import FailoverConfig, RoutingConfig
 from echeneis.gateway.health import HealthTracker
-from echeneis.gateway.router import ModelEntry, Router
+from echeneis.gateway.router import ModelEntry, Router, is_credit_exhausted
 from echeneis.gateway.usage import UsageTracker
 
 _TEST_CONFIG = RoutingConfig.from_dict(
@@ -163,6 +163,111 @@ class TestRouting:
                     Classification(task_type="translation", tier="A"),
                     [{"role": "user", "content": "translate hello"}],
                 )
+
+
+_CLAUDE_CONFIG = RoutingConfig.from_dict(
+    {
+        "tiers": {
+            "A": {
+                "description": "General",
+                "models": {"general_qa": "claude-sonnet-5-5"},
+                "fallback": {"general_qa": ["claude-haiku-5-5", "gemma-4-26b"]},
+            },
+        },
+        "task_types": [],
+        "failover": {"circuit_breaker": {"consecutive_failures": 1}},
+        "cross_check": {},
+    }
+)
+
+_CLAUDE_REGISTRY = {
+    "claude-sonnet-5-5": ModelEntry("anthropic/claude-sonnet-5-5", api_key="sk"),
+    "claude-haiku-5-5": ModelEntry("anthropic/claude-haiku-5-5", api_key="sk"),
+    "gemma-4-26b": ModelEntry("gemini/gemma-4-26b-a4b-it", api_key="sk"),
+}
+
+_QA = Classification(task_type="general_qa", tier="A")
+_MSG = [{"role": "user", "content": "hi"}]
+
+
+def _no_credit_error():
+    import litellm
+
+    return litellm.BadRequestError(
+        message='AnthropicException - {"type":"error","error":{"type":'
+        '"invalid_request_error","message":"Your credit balance is too low '
+        'to access the Anthropic API."}}',
+        model="claude-sonnet-5-5",
+        llm_provider="anthropic",
+    )
+
+
+class TestOutOfCredit:
+    def test_detects_credit_errors(self) -> None:
+        import litellm
+
+        assert is_credit_exhausted(_no_credit_error())
+        payment = litellm.BadRequestError(message="x", model="m", llm_provider="p")
+        payment.status_code = 402
+        assert is_credit_exhausted(payment)
+        assert not is_credit_exhausted(
+            litellm.BadRequestError(message="bad", model="m", llm_provider="p")
+        )
+        assert not is_credit_exhausted(TimeoutError("slow"))
+
+    @pytest.mark.asyncio
+    async def test_falls_back_and_skips_claude_silently(self) -> None:
+        health = HealthTracker(FailoverConfig(circuit_breaker_failures=1))
+        router = Router(_CLAUDE_CONFIG, _CLAUDE_REGISTRY, health)
+        called: list[str] = []
+
+        async def fake(**kwargs):
+            called.append(kwargs["model"])
+            if kwargs["model"].startswith("anthropic/"):
+                raise _no_credit_error()
+            return {"choices": [{"message": {"content": "ok"}}]}
+
+        with patch("echeneis.gateway.router.litellm.acompletion", side_effect=fake):
+            first = await router.route(_QA, _MSG)
+            second = await router.route(_QA, _MSG)
+
+        assert first.model_name == second.model_name == "gemma-4-26b"
+        # Haiku is skipped after Sonnet's billing error: same balance.
+        assert called == [
+            "anthropic/claude-sonnet-5-5",
+            "gemini/gemma-4-26b-a4b-it",
+            "gemini/gemma-4-26b-a4b-it",
+        ]
+        assert health.get_status()["claude-sonnet-5-5"]["circuit"] == "closed"
+        flags = {m["name"]: m["out_of_credit"] for m in router.list_models()}
+        assert flags == {
+            "claude-sonnet-5-5": True,
+            "claude-haiku-5-5": True,
+            "gemma-4-26b": False,
+        }
+
+    @pytest.mark.asyncio
+    async def test_claude_used_while_credit_lasts(self) -> None:
+        router = Router(
+            _CLAUDE_CONFIG,
+            _CLAUDE_REGISTRY,
+            HealthTracker(FailoverConfig()),
+        )
+        ok = AsyncMock(return_value={"choices": [{"message": {"content": "ok"}}]})
+        with patch("echeneis.gateway.router.litellm.acompletion", ok):
+            routed = await router.route(_QA, _MSG)
+        assert routed.model_name == "claude-sonnet-5-5"
+
+    @pytest.mark.asyncio
+    async def test_direct_call_without_credit_fails_fast(self) -> None:
+        health = HealthTracker(FailoverConfig())
+        health.mark_out_of_credit("anthropic")
+        router = Router(_CLAUDE_CONFIG, _CLAUDE_REGISTRY, health)
+        never = AsyncMock()
+        with patch("echeneis.gateway.router.litellm.acompletion", never):
+            with pytest.raises(RuntimeError, match="out of credit"):
+                await router.route_direct("claude-haiku-5-5", _MSG)
+        never.assert_not_called()
 
 
 class TestModelEntryExtraBody:

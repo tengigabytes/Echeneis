@@ -66,6 +66,36 @@ async def test_all_healthy_returns_empty():
     assert failing == []
 
 
+@pytest.mark.asyncio
+async def test_out_of_credit_models_are_not_reported():
+    calls: dict[str, int] = {}
+    listed = {
+        "models": [
+            {"name": "alive", "has_key": True},
+            {"name": "known-broke", "has_key": True, "out_of_credit": True},
+            {"name": "just-broke", "has_key": True},
+        ]
+    }
+
+    def handler(req: httpx.Request) -> httpx.Response:
+        if req.url.path == "/models":
+            return httpx.Response(200, json=listed)
+        model = json.loads(req.content)["model"]
+        calls[model] = calls.get(model, 0) + 1
+        if model == "just-broke":
+            # The gateway learns about the spent balance from this probe.
+            listed["models"][2]["out_of_credit"] = True
+            return httpx.Response(502, json={"detail": "credit balance too low"})
+        return httpx.Response(200, json={"choices": [{"message": {"content": "ok"}}]})
+
+    gw = _make_client(handler)
+    failing = await find_failing_models(gw, retry_delay=0)
+    await gw.close()
+
+    assert failing == []
+    assert calls == {"alive": 1, "just-broke": 2}
+
+
 _TW = timezone(timedelta(hours=8))
 _JST = timezone(timedelta(hours=9))
 
